@@ -1,0 +1,1 @@
+cp ./CMakePresets.json.base ./CMakePresets.json

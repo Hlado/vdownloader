@@ -1,20 +1,8 @@
 # Setup
 
-Run bootstrapping script:
+Generate Visual Studio (2022 by default) solution using CMake:
 
     cd <vdownloader_dir>
-    ./bootstrap.sh
-
-Set desired target triplet variable value to CMakePresets.json:
-
-    {
-        ...
-        "configurePresets": [
-            ...
-            "cacheVariables": {
-                ...
-                "VCPKG_TARGET_TRIPLET": "<triplet_name>"
-            }
-        ]
-    }
+    cmake --preset=default
     
+Project files will be placed into ***"build"*** subdirectory.

@@ -8,31 +8,31 @@
 
 namespace libav {
 
-static void FreeContext(AvFormatContext::ImplType *ptr) noexcept {
+static void FreeContext(FormatContext::ImplType *ptr) noexcept {
     if(ptr != nullptr) {
         //It's unclear is there any drawbacks of closing stream that hasn't been opened.
         avformat_close_input(&ptr);
     }
 }
 
-bool AvFormatContext::IsInitialized() const noexcept {
+bool FormatContext::IsInitialized() const noexcept {
     return impl.get() != nullptr;
 }
 
-const AvFormatContext::ImplType *AvFormatContext::UnsafeGetPtr() const noexcept {
+const FormatContext::ImplType *FormatContext::UnsafeGetPtr() const {
     ThrowIfNotInitialized();
 
     return impl.get();
 }
 
-AvFormatContext::ImplType *AvFormatContext::UnsafeGetPtr() noexcept {
+FormatContext::ImplType *FormatContext::UnsafeGetPtr() {
     ThrowIfNotInitialized();
 
     return impl.get();
 }
 
-void AvFormatContext::Open(const std::string &url) {
-    AvFormatContext::ImplType *ctx = nullptr;
+void FormatContext::Open(const std::string &url) {
+    FormatContext::ImplType *ctx = nullptr;
     
     auto ret = avformat_open_input(&ctx,url.c_str(),nullptr,nullptr);
     if(ret != 0) {
@@ -44,7 +44,7 @@ void AvFormatContext::Open(const std::string &url) {
     impl.swap(tmp);
 }
 
-void AvFormatContext::ThrowIfNotInitialized() const {
+void FormatContext::ThrowIfNotInitialized() const {
     if(!IsInitialized()) {
         throw NotInitializedError{};
     }
@@ -52,8 +52,8 @@ void AvFormatContext::ThrowIfNotInitialized() const {
 
 
 
-AvFormatContext Open(const std::string &url) {
-    AvFormatContext ret;
+FormatContext Open(const std::string &url) {
+    FormatContext ret;
     ret.Open(url);
     return ret;
 }

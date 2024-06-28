@@ -2,8 +2,15 @@ cmake_minimum_required(VERSION 3.28)
 
 project(vdownloader CXX)
 
-find_package(FFMPEG REQUIRED)
+include(CTest)
 
-enable_testing()
-add_subdirectory(tests)
+find_package(bento4 CONFIG REQUIRED)
+
+set(BUILD_APPS OFF CACHE BOOL INTERNAL FORCE)
+add_subdirectory(3rdparty/Bento4)
+
 add_subdirectory(src)
+
+if(BUILD_TESTING)
+    #add_subdirectory(tests)
+endif()

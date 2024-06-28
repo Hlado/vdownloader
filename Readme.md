@@ -6,3 +6,8 @@ Generate Visual Studio (2022 by default) solution using CMake:
     cmake --preset=default
     
 Project files will be placed into ***"build"*** subdirectory.
+
+
+
+
+gstreamer plugins directory!

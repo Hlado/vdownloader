@@ -1,7 +1,14 @@
 {
   "dependencies": [
     {
-      "name": "ffmpeg"
+      "name": "bento4"
+    },
+    {
+      "name": "cpp-httplib",
+      "default-features": false,
+      "features": [
+        "openssl"
+      ]
     },
     {
       "name": "gtest"
@@ -9,8 +16,12 @@
   ],
   "overrides": [
     {
-      "name": "ffmpeg",
-      "version": "6.1.1"
+      "name": "bento4",
+      "version": "1.6.0-641#0"
+    },
+    {
+      "name": "cpp-httplib",
+      "version": "0.16.0#0"
     },
     {
       "name": "gtest",

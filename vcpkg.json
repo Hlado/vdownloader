@@ -1,9 +1,6 @@
 {
   "dependencies": [
     {
-      "name": "bento4"
-    },
-    {
       "name": "cpp-httplib",
       "default-features": false,
       "features": [
@@ -12,13 +9,12 @@
     },
     {
       "name": "gtest"
+    },
+    {
+      "name": "poco"
     }
   ],
   "overrides": [
-    {
-      "name": "bento4",
-      "version": "1.6.0-641#0"
-    },
     {
       "name": "cpp-httplib",
       "version": "0.16.0#0"
@@ -26,6 +22,10 @@
     {
       "name": "gtest",
       "version": "1.14.0"
+    },
+    {
+      "name": "poco",
+      "version": "1.13.3"
     }
   ],
   "builtin-baseline": "c4467cb686f92671f0172aa8299a77d908175b4e"

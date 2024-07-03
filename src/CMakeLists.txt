@@ -1,7 +1,9 @@
 set(SOURCE_FILES vd/Errors.cpp
                  vd/Sources.cpp)
 
-set(HEADER_FILES vd/Errors.h
+set(HEADER_FILES vd/Ap4ByteStream.h
+                 vd/Ap4Headers.h
+                 vd/Errors.h
                  vd/Preprocessor.h
                  vd/Sources.h
                  vd/Utils.h)

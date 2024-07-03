@@ -12,6 +12,7 @@ namespace vd {
 
 class Error : public std::runtime_error {
 public:
+    Error() : std::runtime_error("") {};
     explicit Error(const std::string &reason) : std::runtime_error{reason} {}
 };
 
@@ -33,9 +34,6 @@ public:
     RangeError() : Error{"out of range error"} {}
     explicit RangeError(const std::string& reason)
         : Error{reason} {}
-    RangeError(std::string_view reason,
-               std::string_view name)
-        : Error{std::format(R"("{}" {})", name, reason)} {}
 };
 
 class ArgumentError : public Error {
@@ -43,9 +41,6 @@ public:
     ArgumentError() : Error{"argument error"} {}
     explicit ArgumentError(const std::string &reason)
         : Error{reason} {}
-    ArgumentError(std::string_view reason,
-                  std::string_view name)
-        : Error{std::format(R"("{}" {})", name, reason)} {}
 };
 
 class NotInitializedError : public Error {

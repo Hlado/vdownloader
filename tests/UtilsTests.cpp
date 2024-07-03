@@ -21,7 +21,7 @@ TEST(UtilsTests, StrToUint)
     ASSERT_EQ(4294967295, StrToUint<std::uint32_t>("4294967295"));
     ASSERT_THROW(StrToUint<std::uint32_t>("4294967296"), RangeError);
 
-    ASSERT_EQ(18446744073709551615, StrToUint<std::uint64_t>("18446744073709551615"));
+    ASSERT_EQ(18446744073709551615u, StrToUint<std::uint64_t>("18446744073709551615"));
     ASSERT_ANY_THROW(StrToUint<std::uint64_t>("18446744073709551616"));
 }
 
@@ -32,9 +32,29 @@ TEST(UtilsTests, UintCast)
     ASSERT_THROW(UintCast<std::uint8_t>((std::size_t)256), RangeError);
 }
 
+TEST(UtilsTests, UintOverflow)
+{
+    ASSERT_FALSE(UintOverflow<std::uint8_t>(0, 255));
+    ASSERT_TRUE(UintOverflow<std::uint8_t>(1, 255));
+    ASSERT_FALSE(UintOverflow<std::uint8_t>(255, 0));
+    ASSERT_TRUE(UintOverflow<std::uint8_t>(255, 1));
+}
+
 TEST(UtilsTests, PrintfTo)
 {
     std::ostringstream ss;
     PrintfTo(ss, "{1} test {0}", 1, 2);
     ASSERT_EQ("2 test 1", ss.str());
+}
+
+TEST(UtilsTests, MakeArray)
+{
+    ASSERT_EQ(0, (MakeArray<0>(0).size()));
+
+    auto arr = MakeArray<5>(123);
+
+    for(auto v : arr)
+    {
+        ASSERT_EQ(123, v);
+    }
 }

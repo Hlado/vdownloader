@@ -11,6 +11,13 @@ find_package(httplib CONFIG REQUIRED)
 
 find_package(Poco REQUIRED COMPONENTS Foundation)
 
+#We enforce warning intolerance only for our own code
+if(MSVC)
+    add_compile_options(/W4 /WX)
+else()
+    add_compile_options(-Wall -Wextra -pedantic -Werror)
+endif()
+
 add_subdirectory(src)
 
 if(BUILD_TESTING)

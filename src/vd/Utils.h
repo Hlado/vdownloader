@@ -32,7 +32,7 @@ T StrToUint(const std::string &str)
         throw RangeError{};
     }
 
-    return ret;
+    return static_cast<T>(ret);
 }
 
 
@@ -53,6 +53,12 @@ constexpr ToT UintCast(FromT val)
 
         return static_cast<ToT>(val);
     }
+}
+
+template<std::unsigned_integral T>
+constexpr bool UintOverflow(T val, T add)
+{
+    return std::numeric_limits<T>::max() - val < add;
 }
 
 
@@ -91,6 +97,16 @@ template <typename T>
 void Errorln(const T &val)
 {
     std::cerr << val << std::endl;
+}
+
+
+
+template <std::size_t Size, typename T>
+std::array<T, Size> MakeArray(const T &val)
+{
+    std::array<T, Size> ret;
+    std::fill(ret.begin(), ret.end(), val);
+    return ret;
 }
 
 }

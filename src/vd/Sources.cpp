@@ -1,17 +1,19 @@
 #include "Sources.h"
 
 #include "Errors.h"
-#include "Utils.h"
 
 #include <Poco/URI.h>
 
 #include <cstring>
+#include <functional>
 #include <limits>
 
 using namespace httplib;
 
 namespace vd
 {
+
+using namespace internal;
 
 static std::string ExtractAddress(std::string_view url)
 {
@@ -59,25 +61,21 @@ std::size_t HttpSource::GetContentLength() const noexcept
     return mContentLength;
 }
 
-std::size_t HttpSource::Read(std::size_t pos, std::span<std::byte> buf)
+void HttpSource::Read(std::size_t pos, std::span<std::byte> buf)
 {
     //This precondition is essential for next checks
     if(buf.size_bytes() == 0)
     {
-        return 0;
+        return;
     }
 
-    constexpr auto posMax = std::numeric_limits<decltype(pos)>::max();
-    if(posMax - pos < buf.size_bytes() - 1)
-    {
-        throw RangeError{};
-    }
+    AssertRangeCorrect(pos, buf, GetContentLength());
 
     constexpr auto fromMax = std::numeric_limits<decltype(Range::first)>::max();
     constexpr auto toMax = std::numeric_limits<decltype(Range::second)>::max();
     auto from = pos;
-    auto to = pos + buf.size_bytes() - 1;
-    if(std::cmp_greater(from, fromMax) || std::cmp_greater(to, toMax) || to >= mContentLength)
+    auto to = buf.size_bytes() - 1 + pos;
+    if(std::cmp_greater(from, fromMax) || std::cmp_greater(to, toMax))
     {
         throw RangeError{};
     }
@@ -88,11 +86,10 @@ std::size_t HttpSource::Read(std::size_t pos, std::span<std::byte> buf)
         auto requestRes = mHttpClient->Get(mRequestStr, {range});
         const auto &response = AssertRequestSuccessful(requestRes, PartialContent_206);
         auto body = response.body;
-        AssertResponseLengthOk(buf.size_bytes(), body.size());
+        AssertResponseLengthCorrect(buf.size_bytes(), body.size());
 
-        auto ret = body.size();
-        std::memcpy(buf.data(), body.data(), ret);
-        return ret;
+        std::memcpy(buf.data(), body.data(), body.size());
+        return;
     }
     else
     {
@@ -102,7 +99,7 @@ std::size_t HttpSource::Read(std::size_t pos, std::span<std::byte> buf)
         }
        
         std::memcpy(buf.data(), std::next(mCache.data(), from), buf.size_bytes());
-        return buf.size_bytes();
+        return;
     }
 }
 
@@ -112,7 +109,7 @@ void HttpSource::Cache()
     const auto &response = AssertRequestSuccessful(requestRes);
 
     auto body = response.body;
-    AssertResponseLengthOk(mContentLength, body.size());
+    AssertResponseLengthCorrect(mContentLength, body.size());
 
     mCache.resize(body.size());
     std::memcpy(mCache.data(), body.data(), body.size());
@@ -137,7 +134,7 @@ const Response &HttpSource::AssertRequestSuccessful(
     return response;
 }
 
-void HttpSource::AssertResponseLengthOk(std::size_t requested, std::size_t actual)
+void HttpSource::AssertResponseLengthCorrect(std::size_t requested, std::size_t actual)
 {
     if(requested != actual)
     {

@@ -58,3 +58,21 @@ TEST(UtilsTests, MakeArray)
         ASSERT_EQ(123, v);
     }
 }
+
+TEST(UtilsTests, Defer)
+{
+    auto x = 12345;
+
+    {
+        Defer d(
+            [&x]()
+            {
+                x = 54321;
+                throw Error{};
+            });
+
+        ASSERT_EQ(12345, x);
+    }
+
+    ASSERT_EQ(54321, x);
+}

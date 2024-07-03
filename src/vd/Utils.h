@@ -16,6 +16,10 @@
 namespace vd
 {
 
+const std::string gEol{"\n"};
+
+
+
 template <typename T>
 constexpr std::underlying_type_t<T> ToUnderlying(const T &val)
 {
@@ -108,6 +112,35 @@ std::array<T, Size> MakeArray(const T &val)
     std::fill(ret.begin(), ret.end(), val);
     return ret;
 }
+
+
+
+template <std::invocable T>
+struct Defer final
+{
+    Defer(T &&invocable)
+        : mInvocable(std::move(invocable))
+    {
+    
+    }
+
+    Defer(const Defer<T> &) = delete;
+    Defer<T> &operator=(const Defer<T> &) = delete;
+    Defer(Defer<T> &&) = delete;
+    Defer<T> &operator=(Defer<T> &&) = delete;
+
+    ~Defer()
+    {
+        try
+        {
+            std::invoke(mInvocable);
+        }
+        catch(...) {}
+    }
+
+private:
+    T mInvocable;
+};
 
 }
 

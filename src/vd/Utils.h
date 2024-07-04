@@ -9,6 +9,7 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <utility>
 #include <string>
 #include <type_traits>
@@ -63,6 +64,24 @@ template<std::unsigned_integral T>
 constexpr bool UintOverflow(T val, T add)
 {
     return std::numeric_limits<T>::max() - val < add;
+}
+
+
+
+//If return value is empty pointer then no modifications are made on base
+template <class DerivedT, class BaseT>
+std::unique_ptr<DerivedT> DynamicUniqueCast(std::unique_ptr<BaseT> &base)
+{
+    auto pointer = dynamic_cast<DerivedT *>(base.get());
+
+    std::unique_ptr<DerivedT> ret;
+    if(pointer != nullptr)
+    {
+        ret.reset(pointer);
+        base.release();
+    }
+
+    return ret;
 }
 
 

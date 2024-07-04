@@ -76,3 +76,90 @@ TEST(UtilsTests, Defer)
 
     ASSERT_EQ(54321, x);
 }
+
+
+
+struct B
+{
+    bool &mFlag;
+
+    B(bool &flag)
+        : mFlag(flag)
+    {
+    
+    }
+
+    virtual ~B()
+    {
+        mFlag = !mFlag;
+    }
+};
+
+struct D : public B
+{
+    bool &mFlag;
+
+    D(bool &flagBase, bool &flag)
+        : B(flagBase),
+          mFlag(flag)
+    {
+    
+    }
+
+    ~D() override
+    {
+        mFlag = !mFlag;
+    }
+};
+
+TEST(DynamicUniqueCast, EmptyBase)
+{
+    std::unique_ptr<B> b;
+    auto d = DynamicUniqueCast<D>(b);
+    ASSERT_EQ(nullptr,d);
+}
+
+TEST(DynamicUniqueCast, UnrelatedTypes)
+{
+    struct C { virtual ~C() {} };
+    struct D : public C {};
+
+    auto b = std::make_unique<C>();
+    auto d = DynamicUniqueCast<D>(b);
+    ASSERT_NE(nullptr,b);
+    ASSERT_EQ(nullptr, d);
+}
+
+TEST(DynamicUniqueCast, DerivedToBase)
+{
+    bool flagBase = false;
+    bool flagDerived = false;
+
+    {
+        auto b = std::make_unique<D>(flagBase, flagDerived);
+        auto d = DynamicUniqueCast<D>(b);
+
+        ASSERT_FALSE(flagBase);
+        ASSERT_FALSE(flagDerived);
+        ASSERT_EQ(nullptr, b);
+    }
+
+    ASSERT_TRUE(flagBase);
+    ASSERT_TRUE(flagDerived);
+}
+
+TEST(DynamicUniqueCast, BaseToDerived)
+{
+    bool flagBase = false;
+
+    {
+        auto b = std::make_unique<B>(flagBase);
+        auto d = DynamicUniqueCast<D>(b);
+
+        ASSERT_FALSE(flagBase);
+        ASSERT_EQ(nullptr, d);
+        ASSERT_NE(nullptr, b);
+    }
+
+    ASSERT_TRUE(flagBase);
+}

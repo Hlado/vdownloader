@@ -77,6 +77,15 @@ TEST(UtilsTests, Defer)
     ASSERT_EQ(54321, x);
 }
 
+TEST(UtilsTests, ByteSwap)
+{
+    std::int32_t val = 0xAABBCCDD;
+
+    ASSERT_EQ(0xDDCCBBAA, ByteSwap(val));
+    ByteSwapInplace(val);
+    ASSERT_EQ(0xDDCCBBAA, val);
+}
+
 
 
 struct B
@@ -114,34 +123,23 @@ struct D : public B
 
 TEST(DynamicUniqueCast, EmptyBase)
 {
-    std::unique_ptr<B> b;
-    auto d = DynamicUniqueCast<D>(b);
+    auto d = DynamicUniqueCast<D>(std::unique_ptr<B>{});
     ASSERT_EQ(nullptr,d);
 }
 
-TEST(DynamicUniqueCast, UnrelatedTypes)
-{
-    struct C { virtual ~C() {} };
-    struct D : public C {};
-
-    auto b = std::make_unique<C>();
-    auto d = DynamicUniqueCast<D>(b);
-    ASSERT_NE(nullptr,b);
-    ASSERT_EQ(nullptr, d);
-}
-
-TEST(DynamicUniqueCast, DerivedToBase)
+TEST(DynamicUniqueCast, DerivedToDerived)
 {
     bool flagBase = false;
     bool flagDerived = false;
 
     {
         auto b = std::make_unique<D>(flagBase, flagDerived);
-        auto d = DynamicUniqueCast<D>(b);
+        auto d = DynamicUniqueCast<D>(std::move(b));
 
         ASSERT_FALSE(flagBase);
         ASSERT_FALSE(flagDerived);
         ASSERT_EQ(nullptr, b);
+        ASSERT_NE(nullptr, d);
     }
 
     ASSERT_TRUE(flagBase);
@@ -154,7 +152,7 @@ TEST(DynamicUniqueCast, BaseToDerived)
 
     {
         auto b = std::make_unique<B>(flagBase);
-        auto d = DynamicUniqueCast<D>(b);
+        auto d = DynamicUniqueCast<D>(std::move(b));
 
         ASSERT_FALSE(flagBase);
         ASSERT_EQ(nullptr, d);

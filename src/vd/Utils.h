@@ -3,6 +3,7 @@
 
 #include "Errors.h"
 
+#include <bit>
 #include <concepts>
 #include <cstdint>
 #include <format>
@@ -10,6 +11,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <ranges>
 #include <utility>
 #include <string>
 #include <type_traits>
@@ -70,7 +72,8 @@ constexpr bool UintOverflow(T val, T add)
 
 //If return value is empty pointer then no modifications are made on base
 template <class DerivedT, class BaseT>
-std::unique_ptr<DerivedT> DynamicUniqueCast(std::unique_ptr<BaseT> &base)
+    requires std::derived_from<DerivedT, BaseT>
+std::unique_ptr<DerivedT> DynamicUniqueCast(std::unique_ptr<BaseT> &&base)
 {
     auto pointer = dynamic_cast<DerivedT *>(base.get());
 
@@ -82,6 +85,41 @@ std::unique_ptr<DerivedT> DynamicUniqueCast(std::unique_ptr<BaseT> &base)
     }
 
     return ret;
+}
+
+
+
+namespace internal
+{
+
+//https://en.cppreference.com/w/cpp/numeric/byteswap
+template<std::integral T>
+constexpr T ByteSwap(T val) noexcept
+{
+    static_assert(std::has_unique_object_representations_v<T>,
+                  "T may not have padding bits");
+
+    auto bytes = std::bit_cast<std::array<std::byte, sizeof(T)>>(val);
+    std::ranges::reverse(bytes);
+    return std::bit_cast<T>(bytes);
+}
+
+} //namespace internal
+
+template<std::integral T>
+constexpr T ByteSwap(T val) noexcept
+{
+#ifdef __cpp_lib_byteswap
+    return std::byteswap(val);
+#else
+    return internal::ByteSwap(val);
+#endif
+}
+
+template<std::integral T>
+constexpr void ByteSwapInplace(T &val) noexcept
+{
+    val = ByteSwap(val);
 }
 
 

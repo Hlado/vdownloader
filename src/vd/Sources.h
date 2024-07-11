@@ -34,25 +34,8 @@ namespace internal
 {
 
 //buf size must be greater than 0
-inline void AssertRangeCorrect(
-    std::size_t pos, std::span<std::byte> buf, std::size_t contentLength)
-{
-    if(buf.size_bytes() == 0)
-    {
-        throw ArgumentError{R"("buf" size must be greater than 0)"};
-    }
-
-    if(UintOverflow(pos, buf.size_bytes() - 1))
-    {
-        throw RangeError{};
-    }
-
-    auto to = buf.size_bytes() - 1 + pos;
-    if(to >= contentLength)
-    {
-        throw RangeError{};
-    }
-}
+void AssertRangeCorrect(
+    std::size_t pos, std::span<std::byte> buf, std::size_t contentLength);
 
 } //namespace internal
 

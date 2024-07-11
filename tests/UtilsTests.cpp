@@ -88,6 +88,9 @@ TEST(UtilsTests, ByteSwap)
 
 
 
+namespace
+{
+
 struct B
 {
     bool &mFlag;
@@ -95,7 +98,7 @@ struct B
     B(bool &flag)
         : mFlag(flag)
     {
-    
+
     }
 
     virtual ~B()
@@ -110,9 +113,9 @@ struct D : public B
 
     D(bool &flagBase, bool &flag)
         : B(flagBase),
-          mFlag(flag)
+        mFlag(flag)
     {
-    
+
     }
 
     ~D() override
@@ -120,6 +123,8 @@ struct D : public B
         mFlag = !mFlag;
     }
 };
+
+}//unnamed namespace
 
 TEST(DynamicUniqueCast, EmptyBase)
 {

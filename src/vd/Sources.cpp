@@ -1,5 +1,4 @@
 #include "Sources.h"
-
 #include "Errors.h"
 
 #include <Poco/URI.h>
@@ -13,9 +12,10 @@ using namespace httplib;
 namespace vd
 {
 
-using namespace internal;
+namespace
+{
 
-static std::string ExtractAddress(std::string_view url)
+std::string ExtractAddress(std::string_view url)
 {
     auto parsed = Poco::URI{std::string{url}};
 
@@ -28,6 +28,37 @@ static std::string ExtractAddress(std::string_view url)
 
     return parsed.getScheme() + "://" + parsed.getHost();
 }
+
+} //unnamed namespace
+
+namespace internal
+{
+
+void AssertRangeCorrect(
+    std::size_t pos, std::span<std::byte> buf, std::size_t contentLength)
+{
+    if(buf.size_bytes() == 0)
+    {
+        throw ArgumentError{R"("buf" size must be greater than 0)"};
+    }
+
+    if(UintOverflow(pos, buf.size_bytes() - 1))
+    {
+        throw RangeError{};
+    }
+
+    auto to = buf.size_bytes() - 1 + pos;
+    if(to >= contentLength)
+    {
+        throw RangeError{};
+    }
+}
+
+}//namespace internal
+
+using namespace internal;
+
+
 
 HttpSource::HttpSource(const std::string &url)
     : mHttpClient{std::make_unique<Client>(ExtractAddress(url))},
@@ -42,7 +73,7 @@ HttpSource::HttpSource(const std::string &url)
     auto lookupRes = headers.equal_range("Content-Length");
     if(lookupRes.first == headers.end())
     {
-        throw NotFoundError(R"(header "Content-Length")");
+        throw NotFoundError(R"(response doesn't contain header "Content-Length")");
     }
 
     mContentLength = StrToUint<decltype(mContentLength)>(lookupRes.first->second);

@@ -9,6 +9,8 @@
 
 using namespace vd;
 
+
+
 const std::string gContent = "This is content for testing";
 const std::string gContentType = "text/plain";
 const std::string gHostname = "localhost";
@@ -108,7 +110,7 @@ TEST_F(HttpSourceTestF, ReadPartial)
 {
     auto test = [](const std::string &url)
     {
-        static const auto len = gContent.size() / 2;
+        auto len = gContent.size() / 2;
         auto zero = std::string(gContent.size(), '\0');
         auto half = zero;
         half.replace(0, len, gContent, 0, len);

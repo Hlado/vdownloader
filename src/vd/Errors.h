@@ -46,22 +46,22 @@ public:
 class NotInitializedError : public Error {
 public:
     NotInitializedError() : Error{"entity is not initialized"} {}
-    explicit NotInitializedError(std::string_view name)
-        : Error{std::format(R"("{}" is not initialized)",name)} {}
+    explicit NotInitializedError(const std::string &reason)
+        : Error{reason} {}
 };
 
 class NotFoundError : public Error {
 public:
     NotFoundError() : Error{"entity is not found"} {}
-    explicit NotFoundError(std::string_view name)
-        : Error{std::format(R"("{}" is not found)", name)} {}
+    explicit NotFoundError(const std::string &reason)
+        : Error{reason} {}
 };
 
 class NotImplementedError : public Error {
 public:
     NotImplementedError() : Error{"entity is not implemented"} {}
-    explicit NotImplementedError(std::string_view name)
-        : Error{std::format(R"("{}" is not implemented)",name)} {}
+    explicit NotImplementedError(const std::string &reason)
+        : Error{reason} {}
 };
 
 class HttpError : public Error {

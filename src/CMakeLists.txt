@@ -1,11 +1,16 @@
 set(SOURCE_FILES vd/Errors.cpp
-                 vd/Sources.cpp)
+                 vd/Mp4Container.cpp
+                 vd/Sources.cpp
+                 vd/Track.cpp)
 
 set(HEADER_FILES vd/Ap4ByteStream.h
                  vd/Ap4Headers.h
+                 vd/Ap4Helpers.h
                  vd/Errors.h
+                 vd/Mp4Container.h
                  vd/Preprocessor.h
                  vd/Sources.h
+                 vd/Track.h
                  vd/Utils.h)
 
 set(LIB_NAME ${PROJECT_NAME}lib)

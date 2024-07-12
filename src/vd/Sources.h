@@ -77,6 +77,21 @@ static_assert(std::is_nothrow_move_constructible_v<HttpSource>);
 
 
 
+class MemoryViewSource final
+{
+public:
+    explicit MemoryViewSource(std::span<const std::byte> buf = {});
+
+    std::size_t GetContentLength() const noexcept;
+    //Reading zero bytes performs no operation and returns immediately
+    void Read(std::size_t pos, std::span<std::byte> buf);
+
+private:
+    std::span<const std::byte> mBuf;
+};
+
+
+
 //Wrapper for buffering read operations on sources.
 //MaxChunks parameter sets maximum amount of cached chunks (unlimited if 0)
 template <SourceConcept SourceT>

@@ -175,4 +175,30 @@ void HttpSource::AssertResponseLengthCorrect(std::size_t requested, std::size_t 
     }
 }
 
+
+
+MemoryViewSource::MemoryViewSource(std::span<const std::byte> buf)
+    : mBuf(buf)
+{
+
+}
+
+std::size_t MemoryViewSource::GetContentLength() const noexcept
+{
+    return mBuf.size_bytes();
+}
+
+void MemoryViewSource::Read(std::size_t pos, std::span<std::byte> buf)
+{
+    //This precondition is essential for next checks
+    if(buf.size_bytes() == 0)
+    {
+        return;
+    }
+
+    internal::AssertRangeCorrect(pos, buf, GetContentLength());
+
+    std::memcpy(buf.data(), mBuf.data() + pos, buf.size_bytes());
+}
+
 } //namespace vd

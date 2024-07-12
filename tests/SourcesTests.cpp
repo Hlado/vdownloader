@@ -20,6 +20,8 @@ const std::string gUrl = gAddress + gContentPath;
 const std::string gRangesContentPath = "/content_ranges";
 const std::string gUrlRanges = gAddress + gRangesContentPath;
 constexpr int gPort = 80;
+auto gContentSpan = std::as_bytes(std::span<const char>{gContent.cbegin(), gContent.size()});
+auto gDefaultSource = MemoryViewSource{gContentSpan};
 
 
 
@@ -40,19 +42,19 @@ protected:
             mServer.Get(
                 gContentPath,
                 [](const httplib::Request &, httplib::Response &res)
-            {
-                res.set_header("Accept-Ranges", "none");
-                res.set_content(gContent, gContentType);
-            });
+                {
+                    res.set_header("Accept-Ranges", "none");
+                    res.set_content(gContent, gContentType);
+                });
 
             mServer.Get(
                 gRangesContentPath,
                 [](const httplib::Request &, httplib::Response &res)
-            {
-                res.set_header("Accept-Ranges", "bytes");
-                //Server handles ranges on it's own
-                res.set_content(gContent, gContentType);
-            });
+                {
+                    res.set_header("Accept-Ranges", "bytes");
+                    //Server handles ranges on it's own
+                    res.set_content(gContent, gContentType);
+                });
 
             if(!mServer.listen(gHostname, gPort))
             {
@@ -136,22 +138,16 @@ class CachedSourceTestF : public SourceBaseTestF
 
 };
 
-struct FakeSource
-{
-    std::size_t GetContentLength() const { throw NotImplementedError{}; }
-    void Read(std::size_t, std::span<std::byte>) { throw NotImplementedError{}; }
-};
-
 TEST_F(CachedSourceTestF, ZeroChunkSizeThrows)
 {
-    ASSERT_THROW(CachedSource(FakeSource{}, 1, 0), ArgumentError);
+    ASSERT_THROW(CachedSource(MemoryViewSource{}, 1, 0), ArgumentError);
 }
 
 TEST_F(CachedSourceTestF, ReadFullOneChunkIsEnough)
 {
     auto buf = std::string(gContent.size(), '\0');
     auto span = std::span<char>{buf};
-    CachedSource{HttpSource{gUrl}, 0, gContent.size()}.Read(0, std::as_writable_bytes(span));
+    CachedSource{gDefaultSource, 0, gContent.size()}.Read(0, std::as_writable_bytes(span));
     ASSERT_EQ(gContent, buf);
 }
 
@@ -159,7 +155,7 @@ TEST_F(CachedSourceTestF, ReadFullLittleChunksNoCache)
 {
     auto buf = std::string(gContent.size(), '\0');
     auto span = std::span<char>{buf};
-    CachedSource{HttpSource{gUrl}, 1, 1}.Read(0, std::as_writable_bytes(span));
+    CachedSource{gDefaultSource, 1, 1}.Read(0, std::as_writable_bytes(span));
     ASSERT_EQ(gContent, buf);
 }
 
@@ -167,7 +163,7 @@ TEST_F(CachedSourceTestF, ReadFullLittleChunksUnlimitedCache)
 {
     auto buf = std::string(gContent.size(), '\0');
     auto span = std::span<char>{buf};
-    CachedSource{HttpSource{gUrl}, 0, 1}.Read(0, std::as_writable_bytes(span));
+    CachedSource{gDefaultSource, 0, 1}.Read(0, std::as_writable_bytes(span));
     ASSERT_EQ(gContent, buf);
 }
 
@@ -179,7 +175,7 @@ TEST_F(CachedSourceTestF, ReadPartialNeighborChunksRepeated)
 
     auto buf = std::string(half, '\0');
     auto span = std::span<char>{buf};
-    auto src = CachedSource{HttpSource{gUrl}, 0, half};
+    auto src = CachedSource{gDefaultSource, 0, half};
 
     src.Read(quarter, std::as_writable_bytes(span));
     ASSERT_EQ(gContent.substr(quarter, half), buf);
@@ -199,16 +195,7 @@ class SourceTestF : public SourceBaseTestF
 
 struct HttpSourceWrapper
 {
-    HttpSource impl;
-
-    explicit HttpSourceWrapper(const std::string &url)
-        : impl{url}
-    {
-    
-    }
-
-    HttpSourceWrapper(HttpSourceWrapper &&) = default;
-    HttpSourceWrapper &operator=(HttpSourceWrapper &&) = default;
+    HttpSource impl = HttpSource{gUrl};
 
     std::size_t GetContentLength() const noexcept
     {
@@ -220,19 +207,26 @@ struct HttpSourceWrapper
         return impl.Read(pos, buf);
     }
 };
+
+struct MemoryViewSourceWrapper
+{
+    static_assert(std::is_same_v<MemoryViewSource, decltype(gDefaultSource)>);
+
+    std::size_t GetContentLength() const noexcept
+    {
+        return gDefaultSource.GetContentLength();
+    }
+
+    void Read(std::size_t pos, std::span<std::byte> buf)
+    {
+        return gDefaultSource.Read(pos, buf);
+    }
+};
+
 
 struct ChunkedSourceWrapper
 {
-    CachedSource<HttpSource> impl;
-
-    explicit ChunkedSourceWrapper(const std::string &url)
-        : impl{HttpSource{url}}
-    {
-
-    }
-
-    ChunkedSourceWrapper(ChunkedSourceWrapper &&) = default;
-    ChunkedSourceWrapper &operator=(ChunkedSourceWrapper &&) = default;
+    CachedSource<MemoryViewSource> impl{gDefaultSource};
 
     std::size_t GetContentLength() const noexcept
     {
@@ -245,32 +239,41 @@ struct ChunkedSourceWrapper
     }
 };
 
-using SourceTypes = ::testing::Types<HttpSourceWrapper, ChunkedSourceWrapper>;
+using SourceTypes = ::testing::Types<HttpSourceWrapper,
+                                     MemoryViewSourceWrapper,
+                                     ChunkedSourceWrapper>;
 TYPED_TEST_SUITE(SourceTestF, SourceTypes);
 
 TYPED_TEST(SourceTestF, ContentLengthIsAvailableAfterConstruction)
 {
-    ASSERT_EQ(gContent.size(), TypeParam{gUrl}.GetContentLength());
+    ASSERT_EQ(gContent.size(), TypeParam{}.GetContentLength());
 }
 
 TYPED_TEST(SourceTestF, ReadingZero)
 {
-    ASSERT_NO_THROW(TypeParam{gUrl}.Read(0, std::span<std::byte>{(std::byte *)nullptr, 0}));
+    ASSERT_NO_THROW(TypeParam{}.Read(0, std::span<std::byte>{(std::byte *)nullptr, 0}));
 }
 
 TYPED_TEST(SourceTestF, ReadingNonsenseSpanThrows)
 {
-    auto src = TypeParam{gUrl};
+    auto src = TypeParam{};
     auto arrExtreme = std::array<std::byte, 2>{};
     auto bufExtreme = std::span(arrExtreme);
 
     ASSERT_THROW(src.Read(std::numeric_limits<std::size_t>::max(), bufExtreme), RangeError);
-    ASSERT_THROW(src.Read(std::numeric_limits<httplib::Range::first_type>::max(), bufExtreme), RangeError);
-    ASSERT_THROW(src.Read(std::numeric_limits<httplib::Range::second_type>::max(), bufExtreme), RangeError);
+    ASSERT_THROW(src.Read(std::numeric_limits<std::ptrdiff_t>::max(), bufExtreme), RangeError);
+    ASSERT_THROW(src.Read(std::numeric_limits<std::ptrdiff_t>::max(), bufExtreme), RangeError);
 
     auto arr = std::array<std::byte, 1>{};
     auto buf = std::span(arr);
     src.Read(gContent.size() - 1u, buf);
     ASSERT_EQ((std::byte)*gContent.crbegin(), *arr.cbegin());
-    ASSERT_THROW(src.Read(gContent.size(),buf), RangeError);
+    ASSERT_THROW(src.Read(gContent.size(), buf), RangeError);
+}
+
+TYPED_TEST(SourceTestF, ReadingFull)
+{
+    auto buf = std::string(gContent.size(), '\0');
+    TypeParam{}.Read(0, std::as_writable_bytes(std::span<char>{buf}));
+    ASSERT_EQ(gContent, buf);
 }

@@ -11,6 +11,10 @@ find_package(httplib CONFIG REQUIRED)
 
 find_package(Poco REQUIRED COMPONENTS Foundation)
 
+find_package(PkgConfig)
+pkg_check_modules(openh264 REQUIRED IMPORTED_TARGET openh264)
+
+
 #We enforce warning intolerance only for our own code
 if(MSVC)
     add_compile_options(/W4 /WX)

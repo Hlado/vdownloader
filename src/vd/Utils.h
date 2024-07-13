@@ -12,6 +12,7 @@
 #include <limits>
 #include <memory>
 #include <ranges>
+#include <span>
 #include <utility>
 #include <string>
 #include <type_traits>
@@ -42,7 +43,20 @@ T StrToUint(const std::string &str)
     return static_cast<T>(ret);
 }
 
+template <typename T>
+    requires std::is_arithmetic_v<T> &&
+             (!std::is_same_v<T,bool>)
+T ReadBuffer(std::span<const std::byte> buf)
+{
+    if(buf.size_bytes() < sizeof(T))
+    {
+        throw RangeError{};
+    }
 
+    T ret;
+    std::memcpy(&ret, buf.data(), sizeof(T));
+    return ret;
+}
 
 template<std::unsigned_integral ToT, std::unsigned_integral FromT>
 constexpr ToT UintCast(FromT val)
@@ -120,6 +134,31 @@ template<std::integral T>
 constexpr void ByteSwapInplace(T &val) noexcept
 {
     val = ByteSwap(val);
+}
+
+template<std::endian From, std::endian To, std::integral T>
+constexpr T EndianCast(T val)
+{
+    if constexpr(From == To)
+    {
+        return val;
+    }
+    else
+    {
+        return ByteSwap(val);
+    }
+}
+
+template<std::endian To, std::integral T>
+constexpr T EndianCastTo(T val)
+{
+    return EndianCast<std::endian::native, To, T>(val);
+}
+
+template<std::endian From, std::integral T>
+constexpr T EndianCastFrom(T val)
+{
+    return EndianCast<From, std::endian::native, T>(val);
 }
 
 

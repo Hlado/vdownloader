@@ -17,11 +17,15 @@ namespace vd
 
 struct AvcDecConfigRecord final
 {
+    using UnitType = std::vector<std::byte>;
+    using UnitsType = std::vector<UnitType>;
+
     AvcDecConfigRecord() = default;
     explicit AvcDecConfigRecord(AP4_AvccAtom &avccAtom);
 
-    std::vector<std::vector<std::byte>> spsNalUnits;
-    std::vector<std::vector<std::byte>> ppsNalUnits;
+    std::size_t unitLengthSize = 4;
+    UnitsType spsNalUnits;
+    UnitsType ppsNalUnits;
 };
 
 struct Segment final

@@ -11,6 +11,9 @@
       "name": "gtest"
     },
     {
+      "name": "openh264"
+    },
+    {
       "name": "poco"
     }
   ],
@@ -22,6 +25,10 @@
     {
       "name": "gtest",
       "version": "1.14.0"
+    },
+    {
+      "name": "openh264",
+      "version": "2.4.1"
     },
     {
       "name": "poco",

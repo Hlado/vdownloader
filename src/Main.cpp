@@ -1,5 +1,6 @@
 #include <vd/Ap4ByteStream.h>  
 #include <vd/Mp4Container.h>
+#include <vd/Decoder.h>
 
 using namespace vd;
 
@@ -15,9 +16,14 @@ std::shared_ptr<AP4_ByteStream> MakeFileStream(const std::string &path)
     return ret;
 }
 
+namespace
+{
+
 template <typename T>
 void discard(const T &)
 {
+
+}
 
 }
 
@@ -28,6 +34,7 @@ int main(int argc, char *argv[])
         if(argc != 2)
         {
             Println("Usage: vdownloader <path-to-mp4>");
+            return 1;
         }
 
         auto s = MakeFileStream(argv[1]);
@@ -37,6 +44,9 @@ int main(int argc, char *argv[])
         Mp4Container c(s);
         auto t = c.GetTrack();
         auto segs = c.GetTrack().Slice(t.GetStart(),t.GetFinish());
+        auto d = Decoder{t.GetConfigRecord()};
+        d.Decode(t.Slice(0s, 1s).front(), [](auto, auto) {});
+        discard(d);
     }
     catch(const std::exception &e)
     {

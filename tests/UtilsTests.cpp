@@ -25,6 +25,26 @@ TEST(UtilsTests, StrToUint)
     ASSERT_ANY_THROW(StrToUint<std::uint64_t>("18446744073709551616"));
 }
 
+namespace
+{
+
+template <typename T>
+std::span<const std::byte> AsBytes(const T *val)
+{
+    return std::as_bytes(std::span<const T>(val, sizeof(T)));
+}
+
+}//unnamed namespace
+
+TEST(UtilsTests, ReadBuffer)
+{
+    int i = 12345;
+    double d = 123.45;
+
+    ASSERT_EQ(i, ReadBuffer<int>(AsBytes(&i)));
+    ASSERT_EQ(d, ReadBuffer<double>(AsBytes(&d)));
+}
+
 TEST(UtilsTests, UintCast)
 {
     ASSERT_EQ(10,UintCast<std::size_t>((std::uint8_t)10));
@@ -84,6 +104,20 @@ TEST(UtilsTests, ByteSwap)
     ASSERT_EQ(0xDDCCBBAA, ByteSwap(val));
     ByteSwapInplace(val);
     ASSERT_EQ(0xDDCCBBAA, val);
+}
+
+TEST(UtilsTests, EndianCast)
+{
+    int i = 0x01020304;
+    auto be = EndianCastTo<std::endian::big>(i);
+    auto le = EndianCastTo<std::endian::little>(i);
+
+    ASSERT_NE(be, le);
+    ASSERT_EQ(i, EndianCastFrom<std::endian::big>(be));
+    ASSERT_EQ(i, EndianCastFrom<std::endian::little>(le));
+    ASSERT_EQ(le, (EndianCast<std::endian::big, std::endian::little>(be)));
+    ASSERT_EQ(be, (EndianCast<std::endian::little, std::endian::big>(le)));
+    ASSERT_EQ(i, (EndianCast<std::endian::native, std::endian::native>(i)));
 }
 
 

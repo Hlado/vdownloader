@@ -1,6 +1,7 @@
 #ifndef VDOWNLOADER_VD_MP4_CONTAINER_H_
 #define VDOWNLOADER_VD_MP4_CONTAINER_H_
 
+#include "Mp4Utils.h"
 #include "Track.h"
 
 #include <cstdint>

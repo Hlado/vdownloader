@@ -22,6 +22,7 @@ std::vector<std::byte> CopyParams(const AP4_DataBuffer &buf)
 
 
 AvcDecConfigRecord::AvcDecConfigRecord(AP4_AvccAtom &avccAtom)
+    : unitLengthSize{avccAtom.GetNaluLengthSize()}
 {
     for(auto &param : avccAtom.GetSequenceParameters())
     {

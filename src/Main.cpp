@@ -1,6 +1,7 @@
 #include <vd/Ap4ByteStream.h>  
 #include <vd/Mp4Container.h>
 #include <vd/Decoder.h>
+#include <vd/OpenH264Decoder.h>
 
 using namespace vd;
 
@@ -44,9 +45,12 @@ int main(int argc, char *argv[])
         Mp4Container c(s);
         auto t = c.GetTrack();
         auto segs = c.GetTrack().Slice(t.GetStart(),t.GetFinish());
-        auto d = Decoder{t.GetConfigRecord()};
-        d.Decode(t.Slice(0s, 1s).front(), [](auto, auto) {});
-        discard(d);
+        auto d = Decoder{t.GetConfigRecord(), t.Slice(0s, 1s).front()};
+        int n = 1;
+        for(auto f = d.GetFrame(); f.has_value(); f = d.GetFrame())
+        {
+            std::cout << "frame " << n++ << std::endl;
+        }
     }
     catch(const std::exception &e)
     {

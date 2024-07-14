@@ -50,6 +50,9 @@ TEST(UtilsTests, UintCast)
     ASSERT_EQ(10,UintCast<std::size_t>((std::uint8_t)10));
     ASSERT_EQ(255, UintCast<std::uint8_t>((std::size_t)255));
     ASSERT_THROW(UintCast<std::uint8_t>((std::size_t)256), RangeError);
+    ASSERT_EQ(10,UintCast<std::ptrdiff_t>((std::uint8_t)10));
+    ASSERT_EQ(127, UintCast<std::int8_t>((std::size_t)127));
+    ASSERT_THROW(UintCast<std::int8_t>((std::size_t)128), RangeError);
 }
 
 TEST(UtilsTests, UintOverflow)

@@ -2,6 +2,7 @@ set(SOURCE_FILES vd/Decoder.cpp
                  vd/Errors.cpp
                  vd/Mp4Container.cpp
                  vd/Mp4Utils.cpp
+                 vd/OpenH264Decoder.cpp
                  vd/Sources.cpp
                  vd/Track.cpp)
 
@@ -12,6 +13,7 @@ set(HEADER_FILES vd/Ap4ByteStream.h
                  vd/Errors.h
                  vd/Mp4Container.h
                  vd/Mp4Utils.h
+                 vd/OpenH264Decoder.h
                  vd/Preprocessor.h
                  vd/Sources.h
                  vd/Track.h

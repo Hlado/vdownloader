@@ -1,27 +1,33 @@
 #ifndef VDOWNLOADER_VD_DECODER_H_
 #define VDOWNLOADER_VD_DECODER_H_
 
+#include "OpenH264Decoder.h"
 #include "Track.h"
 
 #include <functional>
+#include <optional>
 #include <span>
 
 namespace vd
 {
 
+//temporarily, obviously
+using RgbImage = SBufferInfo;
+
 class Decoder final
 {
 public:
-    explicit Decoder(AvcDecConfigRecord config);
+    Decoder(AvcDecConfigRecord config, Segment segment);
 
-    static void Decode(const AvcDecConfigRecord &config,
-                       const Segment &segment,
-                       const std::function<void (const std::byte *, std::size_t)> &handler);
-    void Decode(const Segment &segment,
-                const std::function<void (const std::byte *, std::size_t)> &handler) const;
+    std::optional<RgbImage> GetFrame();
     
 private:
+    OpenH264Decoder mDecoder;
     AvcDecConfigRecord mAvcConfig;
+    Segment mSegment;
+    std::optional<std::span<const std::byte>> mRemainder;
+
+    void Initialize();
 };
 
 } //namespace vd

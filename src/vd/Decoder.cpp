@@ -1,6 +1,7 @@
 #include "Decoder.h"
 #include "Ap4ByteStream.h"
 #include "Mp4Utils.h"
+#include "OpenH264Decoder.h"
 #include "Sources.h"
 #include "Utils.h"
 
@@ -12,30 +13,12 @@ using namespace internal;
 namespace
 {
 
-template <typename T>
-void discard(const T &)
+void ProcessParameterSetUnits(OpenH264Decoder &decoder, const std::vector<std::vector<std::byte>> &units)
 {
-
-}
-
-}
-
-
-namespace
-{
-
-void ProcessParameterSetUnits(const std::vector<std::vector<std::byte>> &units)
-{
-    discard(units);
-    /*for(const auto &unit : units)
+    for(const auto &unit : units)
     {
-        //PopulateStream(stream, unit);
-
-        if(auto err = stream.BroadwayDecode(); err != h264::STREAM_ENDED)
-        {
-            throw LibraryCallError{"h264::Stream::BroadwayDecode", err};
-        }
-    }*/
+        decoder.Decode(unit);
+    }
 }
 
 std::span<const std::byte> ReadNalUnit(std::span<const std::byte> data, size_t sizeLen)
@@ -63,21 +46,8 @@ std::span<const std::byte> ReadNalUnit(std::span<const std::byte> data, size_t s
     return data.subspan(sizeLen, unitLen);
 }
 
-}//unnamed namespace
-
-Decoder::Decoder(AvcDecConfigRecord config)
-    : mAvcConfig(std::move(config))
+std::size_t AssertDataOffset(const Segment &segment)
 {
-    
-}
-
-void Decoder::Decode(const AvcDecConfigRecord &config,
-                     const Segment &segment,
-                     const std::function<void (const std::byte *, std::size_t)> &handler)
-{
-    ProcessParameterSetUnits(config.spsNalUnits);
-    ProcessParameterSetUnits(config.ppsNalUnits);
-    
     auto stream = std::make_shared<Ap4ByteStream<MemoryViewSource>>(MemoryViewSource{segment.data});
 
     auto moofAtom = GetNextAtom<AP4_ContainerAtom>(stream, "moof");
@@ -96,23 +66,56 @@ void Decoder::Decode(const AvcDecConfigRecord &config,
         throw Error("negastive offset");
     }
 
-    auto start = UintCast<std::size_t>(static_cast<std::uint32_t>(trunAtom->GetDataOffset()));
-    auto data = std::span<const std::byte>(segment.data).subspan(start);
-    while(data.size_bytes() > 0)
+    auto offset = UintCast<std::size_t>(static_cast<std::uint32_t>(trunAtom->GetDataOffset()));
+    if(offset > segment.data.size())
     {
-        auto unit = ReadNalUnit(data, config.unitLengthSize);
-        discard(unit);
-
-        data = data.subspan(unit.size_bytes() + config.unitLengthSize);
+        throw Error("offset is too big");
     }
 
-    handler(nullptr, 0);
+    return offset;
 }
 
-void Decoder::Decode(const Segment &segment,
-                     const std::function<void (const std::byte *, std::size_t)> &handler) const
+}//unnamed namespace
+
+
+
+Decoder::Decoder(AvcDecConfigRecord config, Segment segment)
+    : mAvcConfig(std::move(config)),
+      mSegment(std::move(segment))
 {
-    Decode(mAvcConfig, segment, handler);
+
+}
+
+std::optional<RgbImage> Decoder::GetFrame()
+{
+    if(!mRemainder)
+    {
+        Initialize();
+    }
+
+    while(mRemainder->size_bytes() > 0)
+    {
+        auto unit = ReadNalUnit(*mRemainder, mAvcConfig.unitLengthSize);
+        auto decoded = mDecoder.Decode(unit);
+        mRemainder = mRemainder->subspan(unit.size_bytes() + mAvcConfig.unitLengthSize);
+
+        if(decoded.iBufferStatus == 1)
+        {
+            return decoded; //TODO
+        }
+    }
+
+    return std::nullopt;
+}
+
+void Decoder::Initialize()
+{
+    ProcessParameterSetUnits(mDecoder, mAvcConfig.spsNalUnits);
+    ProcessParameterSetUnits(mDecoder, mAvcConfig.ppsNalUnits);
+
+    auto offset = AssertDataOffset(mSegment);
+
+    mRemainder = std::span<const std::byte>(mSegment.data).subspan(offset);
 }
 
 } //namespace vd

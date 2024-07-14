@@ -12,14 +12,7 @@
 namespace
 {
 
-consteval std::byte operator ""_b(unsigned long long int val)
-{
-    if(val > 255) throw;
-
-    return static_cast<std::byte>(val);
-}
-
-
+using namespace vd::literals;
 
 const std::byte gSeqParams[] = {1_b, 2_b, 3_b, 4_b};
 const std::byte gPicParams[] = {4_b, 3_b, 2_b, 1_b};

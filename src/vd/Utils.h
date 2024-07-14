@@ -24,6 +24,20 @@ const std::string gEol{"\n"};
 
 
 
+namespace literals
+{
+
+consteval std::byte operator ""_b(unsigned long long int val)
+{
+    if(val > 255) throw;
+
+    return static_cast<std::byte>(val);
+}
+
+}//namespace literals
+
+
+
 template <typename T>
 constexpr std::underlying_type_t<T> ToUnderlying(const T &val)
 {
@@ -58,7 +72,7 @@ T ReadBuffer(std::span<const std::byte> buf)
     return ret;
 }
 
-template<std::unsigned_integral ToT, std::unsigned_integral FromT>
+template<std::integral ToT, std::unsigned_integral FromT>
 constexpr ToT UintCast(FromT val)
 {
     if constexpr(std::numeric_limits<ToT>::max() >= std::numeric_limits<FromT>::max())

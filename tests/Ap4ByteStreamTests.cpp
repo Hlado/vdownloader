@@ -62,8 +62,8 @@ class Ap4ByteStreamTestF : public testing::Test
 {
 protected:
     Ap4ByteStreamTestF()
-        : mSrc(*mWrapper.impl),
-          mStream(std::move(mWrapper))
+        : mSrc{*mWrapper.impl},
+          mStream{std::move(mWrapper)}
     {
     
     }

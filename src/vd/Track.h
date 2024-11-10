@@ -15,17 +15,18 @@
 namespace vd
 {
 
-struct AvcDecConfigRecord final
+struct DecodingConfig final
 {
     using UnitType = std::vector<std::byte>;
     using UnitsType = std::vector<UnitType>;
 
-    AvcDecConfigRecord() = default;
-    explicit AvcDecConfigRecord(AP4_AvccAtom &avccAtom);
+    DecodingConfig() = default;
+    DecodingConfig(AP4_AvccAtom &avccAtom, std::uint32_t timescale);
 
-    std::size_t unitLengthSize = 4;
     UnitsType spsNalUnits;
     UnitsType ppsNalUnits;
+    std::size_t unitLengthSize{4};
+    std::uint32_t timescale{0};
 };
 
 struct Segment final
@@ -33,6 +34,8 @@ struct Segment final
     std::chrono::nanoseconds offset;
     std::chrono::nanoseconds duration;
     std::vector<std::byte> data;
+
+    std::chrono::nanoseconds Finish() const;
 };
 
 
@@ -46,7 +49,7 @@ public:
           std::size_t anchorPoint);
 
     std::uint32_t GetId() const noexcept;
-    const AvcDecConfigRecord  &GetConfigRecord() const noexcept;
+    const DecodingConfig  &GetDecodingConfig() const noexcept;
     bool HasSegments() const noexcept;
     //Throws if no segments are available
     std::chrono::nanoseconds GetStart() const;
@@ -74,7 +77,7 @@ private:
 
     std::shared_ptr<AP4_ByteStream> mContainerData;
     std::vector<SegmentDescriptor> mOrderedDescriptors;
-    AvcDecConfigRecord mConfigRecord;
+    DecodingConfig mDecodingConfig;
     std::size_t mAnchorPoint;
     std::uint32_t mId;
 

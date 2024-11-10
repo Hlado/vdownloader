@@ -11,6 +11,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <ranges>
 #include <span>
 #include <utility>
@@ -21,6 +22,11 @@ namespace vd
 {
 
 const std::string gEol{"\n"};
+
+
+
+template <typename T>
+using Lateinit = std::optional<T>;
 
 
 
@@ -72,16 +78,218 @@ T ReadBuffer(std::span<const std::byte> buf)
     return ret;
 }
 
+
+
+template<std::unsigned_integral ToT, std::unsigned_integral FromT>
+constexpr bool UintOverflow(FromT val)
+{
+    if constexpr(
+        std::cmp_greater_equal(std::numeric_limits<ToT>::max(),
+                               std::numeric_limits<FromT>::max()))
+    {
+        return false;
+    }
+    else
+    {
+        return std::cmp_greater(val, std::numeric_limits<ToT>::max());
+    }
+}
+
+
+
+template<std::unsigned_integral RetT,
+         std::unsigned_integral T,
+         std::unsigned_integral U>
+constexpr RetT Add(bool &overflow, T l, U r)
+{
+    using ExprT = std::common_type_t<RetT, std::make_unsigned_t<decltype(l + r)>>;
+    auto ret = static_cast<ExprT>(l) + r;
+
+    //ret is always unsigned, even in case of integer promotion of smaller types to signed int
+    //but to be completely sure...
+    static_assert(std::is_unsigned_v<decltype(ret)>);
+
+    overflow = ret < l || UintOverflow<RetT>(ret);
+    return static_cast<RetT>(ret);
+}
+
+template<std::unsigned_integral RetT,
+         std::unsigned_integral T,
+         std::unsigned_integral U>
+constexpr RetT Sub(bool &overflow, T l, U r)
+{
+    using ExprT = std::common_type_t<RetT, std::make_unsigned_t<decltype(l - r)>>;
+    auto ret = static_cast<ExprT>(l) - r;
+    overflow = ret > l || UintOverflow<RetT>(ret);
+    return static_cast<RetT>(ret);
+}
+
+template<std::unsigned_integral RetT,
+         std::unsigned_integral T,
+         std::unsigned_integral U>
+constexpr RetT Mul(bool &overflow, T l, U r)
+{
+    using ExprT = std::common_type_t<RetT, std::make_unsigned_t<decltype(l * r)>>;
+    constexpr auto max = std::numeric_limits<ExprT>::max();
+
+    auto ret = static_cast<ExprT>(l) * r;
+    overflow = max / r < l || UintOverflow<RetT>(ret);
+    return static_cast<RetT>(ret);
+}
+
+
+namespace internal
+{
+
+template<std::unsigned_integral RetT,
+         typename ArithmeticOpT,
+         std::unsigned_integral T,
+         std::unsigned_integral U,
+         std::unsigned_integral... Args>
+constexpr RetT NoThrowArithmeticOp(bool &overflow, ArithmeticOpT op, T l, U r, Args...  args)
+{
+    if constexpr(sizeof...(args))
+    {
+        bool tmp;
+        auto ret = NoThrowArithmeticOp<RetT, ArithmeticOpT, RetT, Args...>(overflow, op, op(tmp, l, r), args...);
+        overflow = overflow || tmp;
+        return ret;
+    }
+    else
+    {
+        return op(overflow, l, r);
+    }
+}
+
+template<std::unsigned_integral RetT,
+         typename NoThrowOpT,
+         std::unsigned_integral T,
+         std::unsigned_integral U,
+         std::unsigned_integral... Args>
+constexpr RetT ThrowArithmeticOp(NoThrowOpT op, T l, U r, Args... args)
+{
+    bool overflow;
+    auto ret = op(overflow, l, r, args...);
+    if(overflow)
+    {
+        throw RangeError{};
+    }
+
+    return ret;
+}
+
+} //namespace internal
+
+//Semantic of following functions is like (RetT)((RetT)(l <op> r) <op> args)...
+//for exact details about type casts look into binary versions.
+//It seems narrowing cast of every intermediate result doesn't affect final result at all
+template<std::unsigned_integral RetT,
+         std::unsigned_integral T,
+         std::unsigned_integral U,
+         std::unsigned_integral... Args>
+constexpr RetT Add(bool &overflow, T l, U r, Args... args)
+{
+    RetT (*op)(bool &, T, U) = Add;
+    return internal::NoThrowArithmeticOp<RetT>(overflow, op, l, r, args...);
+}
+
+template<std::unsigned_integral RetT,
+         std::unsigned_integral T,
+         std::unsigned_integral U,
+         std::unsigned_integral... Args>
+constexpr RetT Add(T l, U r, Args... args)
+{
+    RetT (*op)(bool &, T, U, Args...) = Add;
+    return internal::ThrowArithmeticOp<RetT>(op, l, r, args...);
+}
+
+template<std::unsigned_integral RetT,
+         std::unsigned_integral T,
+         std::unsigned_integral U,
+         std::unsigned_integral... Args>
+constexpr RetT Sub(bool &overflow, T l, U r, Args... args)
+{
+    RetT (*op)(bool &, T, U) = Sub;
+    return internal::NoThrowArithmeticOp<RetT>(overflow, op, l, r, args...);
+}
+
+template<std::unsigned_integral RetT,
+         std::unsigned_integral T,
+         std::unsigned_integral U,
+         std::unsigned_integral... Args>
+constexpr RetT Sub(T l, U r, Args... args)
+{
+    RetT (*op)(bool &, T, U, Args...) = Sub;
+    return internal::ThrowArithmeticOp<RetT>(op, l, r, args...);
+}
+
+template<std::unsigned_integral RetT,
+         std::unsigned_integral T,
+         std::unsigned_integral U,
+         std::unsigned_integral... Args>
+constexpr RetT Mul(bool &overflow, T l, U r, Args... args)
+{
+    RetT (*op)(bool &, T, U) = Mul;
+    return internal::NoThrowArithmeticOp<RetT>(overflow, op, l, r, args...);
+}
+
+template<std::unsigned_integral RetT,
+         std::unsigned_integral T,
+         std::unsigned_integral U,
+         std::unsigned_integral... Args>
+constexpr RetT Mul(T l, U r, Args... args)
+{
+    RetT (*op)(bool &, T, U, Args...) = Mul;
+    return internal::ThrowArithmeticOp<RetT>(op, l, r, args...);
+}
+
+template<std::unsigned_integral RetT,
+         std::unsigned_integral T,
+         std::unsigned_integral U,
+         std::unsigned_integral... Args>
+constexpr bool WouldOverflowAdd(T l, U r, Args... args)
+{
+    bool ret;
+    Add<RetT>(ret, l, r, args...);
+    return ret;
+}
+
+template<std::unsigned_integral RetT,
+         std::unsigned_integral T,
+         std::unsigned_integral U,
+         std::unsigned_integral... Args>
+constexpr bool WouldOverflowSub(T l, U r, Args... args)
+{
+    bool ret;
+    Sub<RetT>(ret, l, r, args...);
+    return ret;
+}
+
+template<std::unsigned_integral RetT,
+         std::unsigned_integral T,
+         std::unsigned_integral U,
+         std::unsigned_integral... Args>
+constexpr bool WouldOverflowMul(T l, U r, Args... args)
+{
+    bool ret;
+    Mul<RetT>(ret, l, r, args...);
+    return ret;
+}
+
+
+
 template<std::integral ToT, std::unsigned_integral FromT>
 constexpr ToT UintCast(FromT val)
 {
-    if constexpr(std::numeric_limits<ToT>::max() >= std::numeric_limits<FromT>::max())
+    if constexpr(
+        std::cmp_greater_equal(std::numeric_limits<ToT>::max(),
+                               std::numeric_limits<FromT>::max()))
     {
         return val;
     }
     else
     {
-        if(std::numeric_limits<ToT>::max() < static_cast<std::uintmax_t>(val))
+        if(std::cmp_greater(val, std::numeric_limits<ToT>::max()))
         {
             throw RangeError{};
         }
@@ -90,10 +298,41 @@ constexpr ToT UintCast(FromT val)
     }
 }
 
-template<std::unsigned_integral T>
-constexpr bool UintOverflow(T val, T add)
+template<std::integral ToT, std::signed_integral FromT>
+constexpr ToT SintCast(FromT val)
 {
-    return std::numeric_limits<T>::max() - val < add;
+    if constexpr(
+        std::cmp_greater_equal(std::numeric_limits<ToT>::max(),
+                               std::numeric_limits<FromT>::max()) &&
+        std::cmp_less_equal(std::numeric_limits<ToT>::min(),
+                            std::numeric_limits<FromT>::min()))
+    {
+        return val;
+    }
+    else
+    {
+        if(std::cmp_greater(val, std::numeric_limits<ToT>::max()) ||
+           std::cmp_less(val, std::numeric_limits<ToT>::min()))
+        {
+            throw RangeError{};
+        }
+
+        return static_cast<ToT>(val);
+    }
+}
+
+template<std::integral ToT, std::integral FromT>
+    requires std::is_unsigned_v<FromT>
+constexpr ToT IntCast(FromT val)
+{
+    return UintCast<ToT>(val);
+}
+
+template<std::integral ToT, std::integral FromT>
+    requires std::is_signed_v<FromT>
+constexpr ToT IntCast(FromT val)
+{
+    return SintCast<ToT>(val);
 }
 
 
@@ -251,6 +490,15 @@ struct Defer final
 private:
     T mInvocable;
 };
+
+
+
+//To deal with warnings as errors (while prototyping only)
+template <typename T>
+void Discard(const T &)
+{
+
+}
 
 }
 

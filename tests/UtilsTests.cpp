@@ -8,6 +8,30 @@
 using namespace vd;
 //using namespace vd::internal;
 
+
+
+namespace
+{
+
+consteval std::uint8_t operator ""_u8(unsigned long long int val)
+{
+    return IntCast<std::uint8_t>(val);
+}
+
+consteval std::uint16_t operator ""_u16(unsigned long long int val)
+{
+    return IntCast<std::uint16_t>(val);
+}
+
+consteval std::uint32_t operator ""_u32(unsigned long long int val)
+{
+    return IntCast<std::uint32_t>(val);
+}
+
+}//unnamed namespace
+
+
+
 TEST(UtilsTests, StrToUint)
 {
     ASSERT_ANY_THROW(StrToUint<std::uint8_t>("-1"));
@@ -45,22 +69,76 @@ TEST(UtilsTests, ReadBuffer)
     ASSERT_EQ(d, ReadBuffer<double>(AsBytes(&d)));
 }
 
-TEST(UtilsTests, UintCast)
-{
-    ASSERT_EQ(10,UintCast<std::size_t>((std::uint8_t)10));
-    ASSERT_EQ(255, UintCast<std::uint8_t>((std::size_t)255));
-    ASSERT_THROW(UintCast<std::uint8_t>((std::size_t)256), RangeError);
-    ASSERT_EQ(10,UintCast<std::ptrdiff_t>((std::uint8_t)10));
-    ASSERT_EQ(127, UintCast<std::int8_t>((std::size_t)127));
-    ASSERT_THROW(UintCast<std::int8_t>((std::size_t)128), RangeError);
-}
-
 TEST(UtilsTests, UintOverflow)
 {
-    ASSERT_FALSE(UintOverflow<std::uint8_t>(0, 255));
-    ASSERT_TRUE(UintOverflow<std::uint8_t>(1, 255));
-    ASSERT_FALSE(UintOverflow<std::uint8_t>(255, 0));
-    ASSERT_TRUE(UintOverflow<std::uint8_t>(255, 1));
+    ASSERT_FALSE(UintOverflow<std::uint8_t>(0u));
+    ASSERT_FALSE(UintOverflow<std::uint8_t>(255u));
+    ASSERT_TRUE(UintOverflow<std::uint8_t>(256u));
+    ASSERT_FALSE(UintOverflow<std::uint16_t>(255_u8));
+}
+
+TEST(UtilsTests, Add)
+{
+    ASSERT_NO_THROW(Add<std::uint8_t>(0u, 255u));
+    ASSERT_THROW(Add<std::uint8_t>(0u, 255u, 1u), RangeError);
+    ASSERT_THROW(Add<std::uint8_t>(1u, 255u), RangeError);
+
+    ASSERT_NO_THROW(Add<std::uint64_t>(0_u8, 255_u8));
+    ASSERT_NO_THROW(Add<std::uint64_t>(1_u8, 255_u8));
+
+    ASSERT_NO_THROW(Add<std::uint64_t>(0xFFFFFFFF_u32, 0xFFFFFFFF_u32));
+}
+
+TEST(UtilsTests, Sub)
+{
+    ASSERT_NO_THROW(Sub<std::uint8_t>(1u, 1u));
+    ASSERT_THROW(Sub<std::uint8_t>(1u, 1u, 1u), RangeError);
+    ASSERT_THROW(Sub<std::uint8_t>(0u, 1u), RangeError);
+    ASSERT_NO_THROW(Sub<std::uint8_t>(65536u, 65281u));
+    ASSERT_THROW(Sub<std::uint8_t>(65536u, 65280u), RangeError);
+
+    ASSERT_NO_THROW(Sub<std::uint64_t>(1_u8, 1_u8));
+    ASSERT_THROW(Sub<std::uint64_t>(0_u8, 1_u8), RangeError);
+    ASSERT_NO_THROW(Sub<std::uint64_t>(65536_u32, 65281_u32));
+    ASSERT_NO_THROW(Sub<std::uint64_t>(65536_u32, 65280_u32));
+}
+
+TEST(UtilsTests, Mul)
+{
+    ASSERT_NO_THROW(Mul<std::uint8_t>(51_u8, 5_u8));
+    ASSERT_THROW(Mul<std::uint8_t>(51_u8, 5_u8, 2_u8), RangeError);
+    ASSERT_THROW(Mul<std::uint8_t>(128_u8, 2_u8), RangeError);
+
+    ASSERT_NO_THROW(Mul<std::uint64_t>(51_u8, 5_u8));
+    ASSERT_NO_THROW(Mul<std::uint64_t>(128_u8, 2_u8));
+
+    ASSERT_NO_THROW(Mul<std::uint64_t>(0xFFFFFFFF_u32, 0xFFFFFFFF_u32));
+}
+
+TEST(UtilsTests, UintCast)
+{
+    ASSERT_EQ(10,IntCast<std::uint64_t>((std::uint8_t)10));
+    ASSERT_EQ(255, IntCast<std::uint8_t>((std::uint64_t)255));
+    ASSERT_THROW(IntCast<std::uint8_t>((std::uint64_t)256), RangeError);
+
+    ASSERT_EQ(10,IntCast<std::int64_t>((std::uint8_t)10));
+    ASSERT_EQ(127, IntCast<std::int8_t>((std::uint64_t)127));
+    ASSERT_THROW(IntCast<std::int8_t>((std::uint64_t)128), RangeError);
+}
+
+TEST(UtilsTests, SintCast)
+{
+    ASSERT_EQ(10,IntCast<std::uint64_t>((std::int8_t)10));
+    ASSERT_EQ(255, IntCast<std::uint8_t>((std::int64_t)255));
+    ASSERT_THROW(IntCast<std::uint8_t>((std::int64_t)256), RangeError);
+    ASSERT_THROW(IntCast<std::uint64_t>((std::int8_t)-1), RangeError);
+
+    ASSERT_EQ(10,IntCast<std::int64_t>((std::int8_t)10));
+    ASSERT_EQ(-10,IntCast<std::int64_t>((std::int8_t)-10));
+    ASSERT_EQ(127, IntCast<std::int8_t>((std::int64_t)127));
+    ASSERT_EQ(-128, IntCast<std::int8_t>((std::int64_t)-128));
+    ASSERT_THROW(IntCast<std::int8_t>((std::int64_t)128), RangeError);
+    ASSERT_THROW(IntCast<std::int8_t>((std::int64_t)-129), RangeError);
 }
 
 TEST(UtilsTests, PrintfTo)

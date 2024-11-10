@@ -146,8 +146,7 @@ CachedSource<SourceT>::CachedSource(SourceT source,
 }
 
 template <SourceConcept SourceT>
-std::size_t CachedSource<SourceT>::GetContentLength()
-const noexcept(noexcept(mSrc.GetContentLength()))
+std::size_t CachedSource<SourceT>::GetContentLength() const noexcept(noexcept(mSrc.GetContentLength()))
 {
     return mSrc.GetContentLength();
 }
@@ -178,6 +177,7 @@ void CachedSource<SourceT>::Read(std::size_t pos, std::span<std::byte> buf)
         auto offset = pos - (chunkId * mChunkSize);
         auto len = std::min(remainder, mChunkSize - offset);
         std::memcpy(outPtr, std::next(chunk.data(), offset), len);
+
         std::advance(outPtr, len);
         remainder -= len;
         pos += len;

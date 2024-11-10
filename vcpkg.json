@@ -11,6 +11,9 @@
       "name": "gtest"
     },
     {
+      "name": "libyuv"
+    },
+    {
       "name": "openh264"
     },
     {
@@ -27,6 +30,10 @@
       "version": "1.14.0"
     },
     {
+      "name": "libyuv",
+      "version": "1857#1"
+    },
+    {
       "name": "openh264",
       "version": "2.4.1"
     },
@@ -35,5 +42,5 @@
       "version": "1.13.3"
     }
   ],
-  "builtin-baseline": "c4467cb686f92671f0172aa8299a77d908175b4e"
+  "builtin-baseline": "7aeffc91033ad35cc4e2c152f213a866ec6c11ac"
 }

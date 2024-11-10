@@ -21,8 +21,9 @@ std::vector<std::byte> CopyParams(const AP4_DataBuffer &buf)
 
 
 
-AvcDecConfigRecord::AvcDecConfigRecord(AP4_AvccAtom &avccAtom)
-    : unitLengthSize{avccAtom.GetNaluLengthSize()}
+DecodingConfig::DecodingConfig(AP4_AvccAtom &avccAtom, std::uint32_t timescale)
+    : unitLengthSize{avccAtom.GetNaluLengthSize()},
+      timescale(timescale)
 {
     for(auto &param : avccAtom.GetSequenceParameters())
     {
@@ -32,6 +33,13 @@ AvcDecConfigRecord::AvcDecConfigRecord(AP4_AvccAtom &avccAtom)
     {
         ppsNalUnits.push_back(CopyParams(param));
     }
+}
+
+
+
+std::chrono::nanoseconds Segment::Finish() const
+{
+    return offset + duration;
 }
 
 
@@ -58,7 +66,6 @@ Track::Track(std::shared_ptr<AP4_ByteStream> containerData,
     {
         throw NotSupportedError{std::format(R"("avcC" profile ({}) is not supported)", avccAtom->GetProfile())};
     }
-    mConfigRecord = AvcDecConfigRecord(*avccAtom);
 
     if(sidxAtom.GetReferenceId() != mId)
     {
@@ -66,12 +73,17 @@ Track::Track(std::shared_ptr<AP4_ByteStream> containerData,
                                 sidxAtom.GetReferenceId(),
                                 mId)};
     }
-
     if(sidxAtom.GetReferences().ItemCount() == 0)
     {
         throw Error{R"("sidx" atom doesn't contain segments)"};
     }
+    auto timescale = sidxAtom.GetTimeScale();
+    if(timescale == 0)
+    {
+        throw ArgumentError{std::format(R"(timescale of track ({}) is zero)", mId)};
+    }
 
+    mDecodingConfig = DecodingConfig(*avccAtom, timescale);
     LoadDescriptors(sidxAtom);
 }
 
@@ -80,9 +92,9 @@ std::uint32_t Track::GetId() const noexcept
     return mId;
 }
 
-const AvcDecConfigRecord &Track::GetConfigRecord() const noexcept
+const DecodingConfig &Track::GetDecodingConfig() const noexcept
 {
-    return mConfigRecord;
+    return mDecodingConfig;
 }
 
 bool Track::HasSegments() const noexcept
@@ -104,12 +116,6 @@ std::chrono::nanoseconds Track::GetFinish() const
 
 void Track::LoadDescriptors(AP4_SidxAtom &sidxAtom)
 {
-    auto timeScale = sidxAtom.GetTimeScale();
-    if(timeScale == 0)
-    {
-        throw ArgumentError{std::format(R"(Time scale of track ({}) is zero)", mId)};
-    }
-
     std::uint32_t dataOffsetAcc{0};
     std::chrono::nanoseconds timeOffsetAcc{0};
     for(auto &ref : sidxAtom.GetReferences())
@@ -123,9 +129,12 @@ void Track::LoadDescriptors(AP4_SidxAtom &sidxAtom)
             throw ArgumentError("segment has zero size or duration");
         }
 
+        auto duration = std::chrono::nanoseconds{
+            ref.m_SubsegmentDuration * std::nano::den / mDecodingConfig.timescale};
+
         auto desc =
             SegmentDescriptor{.timeOffset = timeOffsetAcc,
-                              .duration = std::chrono::nanoseconds{ref.m_SubsegmentDuration * std::nano::den / timeScale},
+                              .duration = duration,
                               .dataOffset = dataOffsetAcc,
                               .size = ref.m_ReferencedSize};
 

@@ -42,12 +42,7 @@ void AssertRangeCorrect(
         throw ArgumentError{R"("buf" size must be greater than 0)"};
     }
 
-    if(UintOverflow(pos, buf.size_bytes() - 1))
-    {
-        throw RangeError{};
-    }
-
-    auto to = buf.size_bytes() - 1 + pos;
+    auto to = Add<std::size_t>(pos, buf.size_bytes() - 1);
     if(to >= contentLength)
     {
         throw RangeError{};

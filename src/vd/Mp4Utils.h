@@ -4,6 +4,7 @@
 #include "Ap4Headers.h"
 #include "Errors.h"
 
+#include <chrono>
 #include <concepts>
 #include <memory>
 #include <string_view>
@@ -16,6 +17,7 @@ namespace internal
 
 std::string AcronymToStr(AP4_UI32 val);
 std::unique_ptr<AP4_Atom> ReadNextAtom(std::shared_ptr<AP4_ByteStream> data);
+std::chrono::nanoseconds DurationNano(std::uint32_t dur, std::uint32_t timescale);
 
 template <class DerivedT, class BaseT>
     requires std::derived_from<DerivedT, BaseT> &&
@@ -39,12 +41,16 @@ std::unique_ptr<DerivedT> AssertAtomType(std::unique_ptr<BaseT> &&base)
 
 template <typename ExpectedT>
     requires std::derived_from<ExpectedT, AP4_Atom>
-std::unique_ptr<ExpectedT> GetNextAtom(std::shared_ptr<AP4_ByteStream> data, std::string_view atomName)
+std::unique_ptr<ExpectedT> GetNextAtom(std::shared_ptr<AP4_ByteStream> data, AP4_Atom::Type atomType)
 {
     auto atom = ReadNextAtom(data);
     if(atom == nullptr)
     {
-        throw NotFoundError{std::format(R"(stream doesn't contain required atom "{}")", atomName)};
+        throw NotFoundError{std::format(R"(stream doesn't contain required atom "{}")", AcronymToStr(atomType))};
+    }
+    else if(atom->GetType() != atomType)
+    {
+        throw Error(std::format(R"(unexpected atom "{}" found instead of "{}")", AcronymToStr(atom->GetType()), AcronymToStr(atomType)));
     }
 
     return AssertAtomType<ExpectedT>(std::move(atom));

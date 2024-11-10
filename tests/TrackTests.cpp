@@ -28,8 +28,10 @@ TEST(TrackTests, Accessors)
     ASSERT_TRUE(track.HasSegments());
     ASSERT_EQ(0s, track.GetStart());
     ASSERT_EQ(60s, track.GetFinish());
-    ASSERT_EQ(ToNalUnits(gSeqParams), track.GetConfigRecord().spsNalUnits);
-    ASSERT_EQ(ToNalUnits(gPicParams), track.GetConfigRecord().ppsNalUnits);
+    ASSERT_EQ(ToNalUnits(gSeqParams), track.GetDecodingConfig().spsNalUnits);
+    ASSERT_EQ(ToNalUnits(gPicParams), track.GetDecodingConfig().ppsNalUnits);
+    ASSERT_EQ(2, track.GetDecodingConfig().unitLengthSize);
+    ASSERT_EQ(1, track.GetDecodingConfig().timescale);
 }
 
 //Can't test that, because constructing track without segments is not allowed for now

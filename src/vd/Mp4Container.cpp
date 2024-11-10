@@ -11,7 +11,7 @@ using namespace internal;
 Mp4Container::Mp4Container(std::shared_ptr<AP4_ByteStream> data)
 {
     //ftyp
-    auto ftypAtom = GetNextAtom<AP4_FtypAtom>(data, "ftyp");
+    auto ftypAtom = GetNextAtom<AP4_FtypAtom>(data, AP4_ATOM_TYPE_FTYP);
     auto brand = ftypAtom->GetMajorBrand();
     if(brand != AP4_ATOM_TYPE('d', 'a', 's', 'h'))
     {
@@ -19,7 +19,7 @@ Mp4Container::Mp4Container(std::shared_ptr<AP4_ByteStream> data)
     }
 
     //moov
-    auto moovAtom = GetNextAtom<AP4_MoovAtom>(data, "moov");
+    auto moovAtom = GetNextAtom<AP4_MoovAtom>(data, AP4_ATOM_TYPE_MOOV);
 
     auto mvhdAtom = dynamic_cast<AP4_MvhdAtom *>(moovAtom->FindChild("mvhd"));
     if(mvhdAtom == nullptr)
@@ -43,7 +43,7 @@ Mp4Container::Mp4Container(std::shared_ptr<AP4_ByteStream> data)
     auto &trakAtom = *tracks.FirstItem()->GetData();
 
     //sidx
-    auto sidxAtom = GetNextAtom<AP4_SidxAtom>(data, "sidx");
+    auto sidxAtom = GetNextAtom<AP4_SidxAtom>(data, AP4_ATOM_TYPE_SIDX);
     AP4_Position sidxEnd;
     if(auto err = data->Tell(sidxEnd); AP4_FAILED(err))
     {

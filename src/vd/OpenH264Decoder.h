@@ -5,18 +5,29 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <span>
 #include <vector>
 
 namespace vd
 {
 
+struct ArgbImage final
+{
+    //little-endian
+    std::vector<std::byte> data;
+    std::size_t width;
+    std::size_t height;
+};
+
 class OpenH264Decoder final
 {
 public:
     OpenH264Decoder();
 
-    SBufferInfo Decode(std::span<const std::byte> nalUnit);
+    //Single NAL unit without size/start code prefix is expected
+    std::optional<ArgbImage> Decode(std::span<const std::byte> nalUnit);
+    std::optional<ArgbImage> Retrieve();
 
 private:
     struct Deleter

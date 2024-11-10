@@ -7,9 +7,11 @@
     },
     {
       "kind": "git",
+      "baseline": "2da1892055f7a6e410bb3d9f522825b752f4e816",
       "repository": "https://github.com/Hlado/vcpkg-registry-vdownloader",
-      "baseline" : "2da1892055f7a6e410bb3d9f522825b752f4e816",
-      "packages": [ "openh264" ]
+      "packages": [
+        "openh264"
+      ]
     }
   ]
 }

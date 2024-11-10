@@ -6,6 +6,7 @@ find_package(GTest REQUIRED CONFIG)
 
 add_executable(${PROJECT_NAME} Ap4ByteStreamTests.cpp
                                Ap4HelpersTests.cpp
+                               DecoderTests.cpp
                                Mp4ContainerTests.cpp
                                SourcesTests.cpp
                                TestContainer.h

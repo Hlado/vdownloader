@@ -68,7 +68,7 @@ struct FakeSampleTable final : public AP4_SampleTable
                     'M',
                     0,
                     0,
-                    0,
+                    2,
                     0,
                     0,
                     0,

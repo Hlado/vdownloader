@@ -8,7 +8,7 @@ set(BUILD_APPS OFF CACHE BOOL INTERNAL FORCE)
 add_subdirectory(3rdparty/Bento4)
 
 find_package(httplib CONFIG REQUIRED)
-
+find_package(libyuv CONFIG REQUIRED)
 find_package(Poco REQUIRED COMPONENTS Foundation)
 
 find_package(PkgConfig)

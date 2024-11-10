@@ -97,7 +97,7 @@ AP4_Result Ap4ByteStream<SourceT>::WritePartial(
 template <SourceConcept SourceT>
 AP4_Result Ap4ByteStream<SourceT>::Seek(AP4_Position pos) noexcept
 {
-    if(std::cmp_greater_equal(pos, GetSize()))
+    if(std::cmp_greater(pos, GetSize()))
     {
         return AP4_ERROR_OUT_OF_RANGE;
     }

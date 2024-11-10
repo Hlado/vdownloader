@@ -113,9 +113,14 @@ TEST_F(Ap4ByteStreamTestF, WritePartialIsNotSupported)
     ASSERT_EQ(AP4_ERROR_NOT_SUPPORTED, ret);
 }
 
+TEST_F(Ap4ByteStreamTestF, SeekExactlyToTheEndWorks)
+{
+    ASSERT_TRUE(AP4_SUCCEEDED(mStream.Seek(gContent.size())));
+}
+
 TEST_F(Ap4ByteStreamTestF, SeekOutOfRangeFails)
 {
-    ASSERT_TRUE(AP4_FAILED(mStream.Seek(gContent.size())));
+    ASSERT_TRUE(AP4_FAILED(mStream.Seek(gContent.size() + 1)));
 }
 
 TEST_F(Ap4ByteStreamTestF, ReadFailsOnSourceException)

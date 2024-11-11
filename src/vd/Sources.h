@@ -35,7 +35,7 @@ namespace internal
 
 //buf size must be greater than 0
 void AssertRangeCorrect(
-    std::size_t pos, std::span<std::byte> buf, std::size_t contentLength);
+    std::size_t pos, std::span<const std::byte> buf, std::size_t contentLength);
 
 } //namespace internal
 

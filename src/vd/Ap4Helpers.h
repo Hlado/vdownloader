@@ -3,6 +3,17 @@
 
 #include "Ap4Headers.h"
 
+namespace vd
+{
+
+const auto gAtomTypeMoof = AP4_ATOM_TYPE('m','o','o','f');
+const auto gAtomTypeSkip = AP4_ATOM_TYPE('s', 'k', 'i', 'p');
+const auto gBrandTypeDash = AP4_ATOM_TYPE('d', 'a', 's', 'h');
+
+}//namespace vd
+
+
+
 template <typename T>
 T *begin(AP4_Array<T> &container)
 {

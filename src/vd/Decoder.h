@@ -124,7 +124,7 @@ DecoderBase<DecoderImplT>::DecoderBase(DecodingConfig config, Segment segment, D
 
     auto stream = std::make_shared<Ap4ByteStream<MemoryViewSource>>(MemoryViewSource{mSegment.data});
 
-    auto moofAtom = GetNextAtom<AP4_ContainerAtom>(stream, AP4_ATOM_TYPE('m','o','o','f'));
+    auto moofAtom = GetNextAtom<AP4_ContainerAtom>(stream, gAtomTypeMoof);
 
     auto tfhdAtom = dynamic_cast<AP4_TfhdAtom *>(moofAtom->FindChild("traf/tfhd"));
     if(tfhdAtom == nullptr)

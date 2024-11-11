@@ -1,4 +1,5 @@
 #include "Mp4Container.h"
+#include "Ap4Helpers.h"
 #include "Utils.h"
 
 #include <format>
@@ -13,7 +14,7 @@ Mp4Container::Mp4Container(std::shared_ptr<AP4_ByteStream> data)
     //ftyp
     auto ftypAtom = GetNextAtom<AP4_FtypAtom>(data, AP4_ATOM_TYPE_FTYP);
     auto brand = ftypAtom->GetMajorBrand();
-    if(brand != AP4_ATOM_TYPE('d', 'a', 's', 'h'))
+    if(brand != gBrandTypeDash)
     {
         throw NotSupportedError{std::format(R"(unsupported major brand "{}")", AcronymToStr(brand))};
     }

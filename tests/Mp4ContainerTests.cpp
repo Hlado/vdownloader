@@ -17,6 +17,11 @@ void RemoveChild(AP4_AtomParent &atom, const char *path)
 
 
 
+TEST(Mp4ContainerTests, ConstructionNullStream)
+{
+    ASSERT_THROW(Mp4Container{nullptr}, ArgumentError);
+}
+
 TEST(Mp4ContainerTests, BadFormat)
 {
     ASSERT_THROW(Mp4Container{std::make_shared<AP4_MemoryByteStream>()}, NotFoundError);

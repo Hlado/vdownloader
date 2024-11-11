@@ -11,6 +11,11 @@ using namespace internal;
 
 Mp4Container::Mp4Container(std::shared_ptr<AP4_ByteStream> data)
 {
+    if(!data)
+    {
+        throw ArgumentError(R"("data" is null)");
+    }
+
     //ftyp
     auto ftypAtom = GetNextAtom<AP4_FtypAtom>(data, AP4_ATOM_TYPE_FTYP);
     auto brand = ftypAtom->GetMajorBrand();

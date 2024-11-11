@@ -176,7 +176,7 @@ public:
 
     std::ostream &Write(std::ostream &stream) const
     {
-        return stream.write(reinterpret_cast<const char *>(mBuf), sizeof(mBuf));
+        return stream.write(reinterpret_cast<const char *>(mBuf), sizeof mBuf);
     }
 
 private:
@@ -185,10 +185,10 @@ private:
     template <std::size_t N>
     std::uint16_t ReadUi16() const
     {
-        static_assert(N < sizeof(mBuf) - 1);
+        static_assert(N < (sizeof mBuf) - 1);
 
         std::uint16_t ret;
-        std::memcpy(&ret, &mBuf[N], 2);
+        std::memcpy(&ret, &mBuf[N], sizeof ret);
 
         return EndianCastFrom<std::endian::little>(ret);
     }
@@ -196,10 +196,10 @@ private:
     template <std::size_t N>
     void WriteUi16(std::uint16_t val)
     {
-        static_assert(N < sizeof(mBuf) - 1);
+        static_assert(N < (sizeof mBuf) - 1);
 
         val = EndianCastTo<std::endian::little>(val);
-        std::memcpy(&mBuf[N], &val, 2);
+        std::memcpy(&mBuf[N], &val, sizeof val);
     }
 };
 

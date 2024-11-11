@@ -123,7 +123,7 @@ void HttpSource::Read(std::size_t pos, std::span<std::byte> buf)
         {
             Cache();
         }
-       
+        
         std::memcpy(buf.data(), std::next(mCache.data(), from), buf.size_bytes());
         return;
     }

@@ -74,7 +74,7 @@ T ReadBuffer(std::span<const std::byte> buf)
     }
 
     T ret;
-    std::memcpy(&ret, buf.data(), sizeof(T));
+    std::memcpy(&ret, buf.data(), sizeof ret);
     return ret;
 }
 
@@ -366,7 +366,7 @@ constexpr T ByteSwap(T val) noexcept
     static_assert(std::has_unique_object_representations_v<T>,
                   "T may not have padding bits");
 
-    auto bytes = std::bit_cast<std::array<std::byte, sizeof(T)>>(val);
+    auto bytes = std::bit_cast<std::array<std::byte, sizeof val>>(val);
     std::ranges::reverse(bytes);
     return std::bit_cast<T>(bytes);
 }

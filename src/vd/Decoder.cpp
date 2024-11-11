@@ -32,7 +32,7 @@ std::size_t AssertDataOffset(const Segment &segment, AP4_TrunAtom &trunAtom)
 std::span<const std::byte> ReadNalUnit(std::span<const std::byte> data, size_t sizeLen)
 {
     std::uint32_t unitLen;
-    if(sizeLen != sizeof(unitLen))
+    if(sizeLen != sizeof unitLen)
     {
         throw NotSupportedError{std::format("NAL unit size length ({}) is not supported", sizeLen)};
     }

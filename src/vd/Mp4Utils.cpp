@@ -11,7 +11,7 @@ std::string AcronymToStr(AP4_UI32 val)
 {
     val = EndianCastFrom<std::endian::big>(val);
 
-    return std::string(reinterpret_cast<const char *>(&val), sizeof(decltype(val)));;
+    return std::string(reinterpret_cast<const char *>(&val), sizeof val);
 }
 
 std::unique_ptr<AP4_Atom> ReadNextAtom(std::shared_ptr<AP4_ByteStream> data)

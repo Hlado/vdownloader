@@ -6,9 +6,6 @@
 #include <sstream>
 
 using namespace vd;
-//using namespace vd::internal;
-
-
 
 namespace
 {
@@ -27,8 +24,6 @@ consteval std::uint32_t operator ""_u32(unsigned long long int val)
 {
     return IntCast<std::uint32_t>(val);
 }
-
-}//unnamed namespace
 
 
 
@@ -49,8 +44,7 @@ TEST(UtilsTests, StrToUint)
     ASSERT_ANY_THROW(StrToUint<std::uint64_t>("18446744073709551616"));
 }
 
-namespace
-{
+
 
 template <typename T>
 std::span<const std::byte> AsBytes(const T *val)
@@ -58,7 +52,7 @@ std::span<const std::byte> AsBytes(const T *val)
     return std::as_bytes(std::span<const T>(val, sizeof(T)));
 }
 
-}//unnamed namespace
+
 
 TEST(UtilsTests, ReadBuffer)
 {
@@ -203,9 +197,6 @@ TEST(UtilsTests, EndianCast)
 
 
 
-namespace
-{
-
 struct B
 {
     bool &mFlag;
@@ -239,7 +230,7 @@ struct D : public B
     }
 };
 
-}//unnamed namespace
+
 
 TEST(DynamicUniqueCast, EmptyBase)
 {
@@ -281,3 +272,5 @@ TEST(DynamicUniqueCast, BaseToDerived)
 
     ASSERT_TRUE(flagBase);
 }
+
+}//unnamed namespace

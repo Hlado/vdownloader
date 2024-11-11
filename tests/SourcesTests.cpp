@@ -9,7 +9,8 @@
 
 using namespace vd;
 
-
+namespace
+{
 
 const std::string gContent = "This is content for testing";
 const std::string gContentType = "text/plain";
@@ -277,3 +278,5 @@ TYPED_TEST(SourceTestF, ReadingFull)
     TypeParam{}.Read(0, std::as_writable_bytes(std::span<char>{buf}));
     ASSERT_EQ(gContent, buf);
 }
+
+}//unnamed namespace

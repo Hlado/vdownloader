@@ -8,6 +8,9 @@ using namespace vd;
 
 
 
+namespace
+{
+
 const std::string gContent = "This is content for testing";
 
 
@@ -185,3 +188,5 @@ TEST_F(Ap4ByteStreamTestF, SeekAndRead)
     mStream.Tell(pos);
     ASSERT_EQ(gContent.size(), pos);
 }
+
+}//unnamed namespace

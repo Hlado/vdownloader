@@ -9,11 +9,10 @@
 #include <memory>
 #include <vector>
 
-namespace
-{
-
 using namespace vd::literals;
 
+namespace {
+    
 const std::byte gSeqParams[] = {1_b, 2_b, 3_b, 4_b};
 const std::byte gPicParams[] = {4_b, 3_b, 2_b, 1_b};
 
@@ -28,64 +27,75 @@ struct TestContainerData final
 
 struct FakeSampleTable final : public AP4_SampleTable
 {
-    AP4_Cardinal GetSampleCount() override
-    {
-        return 0;
-    }
-
-    AP4_Result GetSample(AP4_Ordinal, AP4_Sample &) override
-    {
-        return AP4_ERROR_NOT_SUPPORTED;
-    }
-
+    AP4_Cardinal GetSampleCount() override;
+    AP4_Result GetSample(AP4_Ordinal, AP4_Sample &) override;
     AP4_Result GetSampleChunkPosition(AP4_Ordinal,
                                       AP4_Ordinal &,
-                                      AP4_Ordinal &) override
-    {
-        return AP4_ERROR_NOT_SUPPORTED;
-    }
-
-    AP4_Cardinal GetSampleDescriptionCount() override
-    {
-        return 1;
-    }
-
-    AP4_SampleDescription *GetSampleDescription(AP4_Ordinal) override
-    {
-        AP4_Array<AP4_DataBuffer> seqParams;
-        seqParams.Append({gSeqParams, sizeof(gSeqParams)});
-        AP4_Array<AP4_DataBuffer> picParams;
-        picParams.Append({gPicParams, sizeof(gPicParams)});
-
-        return
-            new AP4_AvcSampleDescription(
-                AP4_ATOM_TYPE('a', 'v', 'c', '1'),
-                0,
-                0,
-                0,
-                "",
-                new AP4_AvccAtom{
-                    'M',
-                    0,
-                    0,
-                    2,
-                    0,
-                    0,
-                    0,
-                    seqParams,
-                    picParams});
-    }
-
-    AP4_Result GetSampleIndexForTimeStamp(AP4_UI64, AP4_Ordinal &) override
-    {
-        return AP4_ERROR_NOT_SUPPORTED;
-    }
-
-    AP4_Ordinal GetNearestSyncSampleIndex(AP4_Ordinal, bool) override
-    {
-        return 0;
-    }
+                                      AP4_Ordinal &) override;
+    AP4_Cardinal GetSampleDescriptionCount() override;
+    AP4_SampleDescription *GetSampleDescription(AP4_Ordinal) override;
+    AP4_Result GetSampleIndexForTimeStamp(AP4_UI64, AP4_Ordinal &) override;
+    AP4_Ordinal GetNearestSyncSampleIndex(AP4_Ordinal, bool) override;
 };
+
+AP4_Cardinal FakeSampleTable::GetSampleCount()
+{
+    return 0;
+}
+
+AP4_Result FakeSampleTable::GetSample(AP4_Ordinal, AP4_Sample &)
+{
+    return AP4_ERROR_NOT_SUPPORTED;
+}
+
+AP4_Result FakeSampleTable::GetSampleChunkPosition(AP4_Ordinal,
+                                                   AP4_Ordinal &,
+                                                   AP4_Ordinal &)
+{
+    return AP4_ERROR_NOT_SUPPORTED;
+}
+
+AP4_Cardinal FakeSampleTable::GetSampleDescriptionCount()
+{
+    return 1;
+}
+
+AP4_SampleDescription *FakeSampleTable::GetSampleDescription(AP4_Ordinal)
+{
+    AP4_Array<AP4_DataBuffer> seqParams;
+    seqParams.Append({gSeqParams, sizeof(gSeqParams)});
+    AP4_Array<AP4_DataBuffer> picParams;
+    picParams.Append({gPicParams, sizeof(gPicParams)});
+
+    return
+        new AP4_AvcSampleDescription(
+            AP4_ATOM_TYPE('a', 'v', 'c', '1'),
+            0,
+            0,
+            0,
+            "",
+            new AP4_AvccAtom{
+                'M',
+                0,
+                0,
+                2,
+                0,
+                0,
+                0,
+                seqParams,
+                picParams});
+}
+
+AP4_Result FakeSampleTable::GetSampleIndexForTimeStamp(AP4_UI64, AP4_Ordinal &)
+{
+    return AP4_ERROR_NOT_SUPPORTED;
+}
+
+AP4_Ordinal FakeSampleTable::GetNearestSyncSampleIndex(AP4_Ordinal, bool)
+{
+    return 0;
+}
+
 
 
 AP4_TrakAtom *CreateTrakAtom()

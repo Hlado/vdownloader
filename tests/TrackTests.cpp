@@ -8,6 +8,20 @@
 using namespace vd;
 using namespace std::chrono_literals;
 
+namespace vd
+{
+
+static bool operator==(const Segment &l, const Segment &r) noexcept
+{
+    return l.offset == r.offset &&
+        l.duration == r.duration &&
+        l.data == r.data;
+}
+
+}//namespace vd
+
+
+
 namespace
 {
 
@@ -17,7 +31,7 @@ std::vector<std::vector<std::byte>> ToNalUnits(const std::byte (&arr)[Len])
     return std::vector<std::vector<std::byte>>{std::vector<std::byte>(arr, arr + Len)};
 }
 
-}//unnamed namespace
+
 
 TEST(TrackTests, Accessors)
 {
@@ -59,18 +73,6 @@ TEST(TrackTests, SliceBadRangeThrows)
     ASSERT_THROW(track.Slice(30s, 30s), RangeError);
 }
 
-namespace vd
-{
-
-static bool operator==(const Segment &l, const Segment &r) noexcept
-{
-    return l.offset == r.offset &&
-        l.duration == r.duration &&
-        l.data == r.data;
-}
-
-}//namespace vd
-
 TEST(TrackTests, SliceCorrectRanges)
 {
     auto container = Mp4Container{Serialize(GetTestData())};
@@ -93,3 +95,5 @@ TEST(TrackTests, SliceCorrectRanges)
     ASSERT_EQ((std::vector<Segment>{seg1, seg2}), track.Slice(5s, 30s));
     ASSERT_EQ((std::vector<Segment>{seg2, seg3}), track.Slice(15s, 60s));
 }
+
+}//unnamed namespace

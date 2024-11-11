@@ -154,7 +154,7 @@ void RemoveChild(AP4_AtomParent &atom, const char *path)
     child->GetParent()->RemoveChild(child);
 }
 
-}//unnamed namespace
+
 
 TEST(DecoderTests, ConstructionEmptySegment)
 {
@@ -553,3 +553,5 @@ TEST(DecoderTests, DecodingCorrectH264MissingH264Frame)
     ASSERT_EQ(13s,decoder.TimestampNext());
     ASSERT_FALSE(decoder.GetNext());
 }
+
+}//unnamed namespace

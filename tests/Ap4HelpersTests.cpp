@@ -2,6 +2,9 @@
 
 #include <gtest/gtest.h>
 
+namespace
+{
+
 TEST(Ap4HelpersTests, AP4_ArrayRange)
 {
     AP4_Array<int> arr;
@@ -42,3 +45,5 @@ TEST(Ap4HelpersTests, AP4_ArrayRange)
     }
     ASSERT_EQ(3, acc);
 }
+
+}//unnamed namespace

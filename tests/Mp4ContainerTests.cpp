@@ -15,7 +15,6 @@ void RemoveChild(AP4_AtomParent &atom, const char *path)
     child->GetParent()->RemoveChild(child);
 }
 
-} //unnamed namespace
 
 
 TEST(Mp4ContainerTests, BadFormat)
@@ -73,3 +72,5 @@ TEST(Mp4ContainerTests, BadFormat)
     data.sidxAtom->UseReferences()[0].m_SubsegmentDuration = 0;
     ASSERT_THROW(Mp4Container{Serialize(data)}, ArgumentError);
 }
+
+}//unnamed namespace

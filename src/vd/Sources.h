@@ -133,8 +133,8 @@ private:
 
 template <SourceConcept SourceT>
 CachedSource<SourceT>::CachedSource(SourceT source,
-                                      std::size_t maxChunks,
-                                      std::size_t chunkSize)
+                                    std::size_t maxChunks,
+                                    std::size_t chunkSize)
     : mSrc{std::move(source)},
       mMaxChunks{maxChunks},
       mChunkSize{chunkSize}

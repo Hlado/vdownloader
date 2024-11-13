@@ -62,10 +62,6 @@ Track::Track(std::shared_ptr<AP4_ByteStream> containerData,
     {
         throw NotFoundError{R"("avcC" atom is not found)"};
     }
-    if(avccAtom->GetProfile() != 77)
-    {
-        throw NotSupportedError{std::format(R"("avcC" profile ({}) is not supported)", avccAtom->GetProfile())};
-    }
 
     if(sidxAtom.GetReferenceId() != mId)
     {

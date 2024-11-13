@@ -51,11 +51,6 @@ TEST(Mp4ContainerTests, BadFormat)
     data = GetTestData();
     RemoveChild(*data.moovAtom, "trak/mdia/minf/stbl/stsd/avc1/avcC");
     ASSERT_THROW(Mp4Container{Serialize(data)}, NotFoundError);
-
-    data = GetTestData();
-    auto avccAtom = dynamic_cast<AP4_AvccAtom *>(data.moovAtom->FindChild("trak/mdia/minf/stbl/stsd/avc1/avcC"));
-    avccAtom->SetProfile(0);
-    ASSERT_THROW(Mp4Container{Serialize(data)}, NotSupportedError);
     
     data = GetTestData();
     data.sidxAtom->SetReferenceCount(0);

@@ -8,6 +8,7 @@ add_executable(${PROJECT_NAME} Ap4ByteStreamTests.cpp
                                Ap4HelpersTests.cpp
                                DecoderTests.cpp
                                Mp4ContainerTests.cpp
+                               OptionsTests.cpp
                                SourcesTests.cpp
                                TestContainer.h
                                TrackTests.cpp

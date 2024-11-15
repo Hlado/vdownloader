@@ -4,6 +4,7 @@
 #include "Errors.h"
 
 #include <bit>
+#include <chrono>
 #include <concepts>
 #include <cstdint>
 #include <format>
@@ -27,6 +28,12 @@ const std::string gEol{"\n"};
 
 template <typename T>
 using Lateinit = std::optional<T>;
+
+template <typename T>
+concept StdDurationConcept = requires {
+    []<class Rep, class Period>(std::type_identity<std::chrono::duration<Rep, Period>>){}(
+        std::type_identity<T>{});
+};
 
 
 

@@ -273,4 +273,10 @@ TEST(DynamicUniqueCast, BaseToDerived)
     ASSERT_TRUE(flagBase);
 }
 
+TEST(StdDurationConcept, Test)
+{
+    ASSERT_TRUE(StdDurationConcept<std::chrono::seconds>);
+    ASSERT_FALSE(StdDurationConcept<std::string>);
+}
+
 }//unnamed namespace

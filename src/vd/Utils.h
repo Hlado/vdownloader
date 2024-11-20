@@ -507,6 +507,6 @@ void Discard(const T &)
 
 }
 
-}
+}//namespace vd
 
 #endif //VDOWNLOADER_VD_UTILS_H_

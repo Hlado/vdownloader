@@ -105,7 +105,7 @@ AP4_TrakAtom *CreateTrakAtom()
 
 std::unique_ptr<AP4_SidxAtom> CreateSidxAtom()
 {
-    auto sidxAtom = std::make_unique<AP4_SidxAtom>(111, 1, 0, 0);
+    auto sidxAtom = std::make_unique<AP4_SidxAtom>(111, 1, 321, 0);
 
     //This line has to be placed before appending refs, otherwise it will mess up size.
     //Actually, you are not allowed to .Append, it will mess up size again,

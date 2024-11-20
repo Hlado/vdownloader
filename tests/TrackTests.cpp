@@ -40,8 +40,8 @@ TEST(TrackTests, Accessors)
 
     ASSERT_EQ(111, track.GetId());
     ASSERT_TRUE(track.HasSegments());
-    ASSERT_EQ(0s, track.GetStart());
-    ASSERT_EQ(60s, track.GetFinish());
+    ASSERT_EQ(321s + 0s, track.GetStart());
+    ASSERT_EQ(321s + 60s, track.GetFinish());
     ASSERT_EQ(ToNalUnits(gSeqParams), track.GetDecodingConfig().spsNalUnits);
     ASSERT_EQ(ToNalUnits(gPicParams), track.GetDecodingConfig().ppsNalUnits);
     ASSERT_EQ(2, track.GetDecodingConfig().unitLengthSize);
@@ -67,10 +67,10 @@ TEST(TrackTests, SliceBadRangeThrows)
     auto container = Mp4Container{Serialize(GetTestData())};
     auto &track = container.GetTrack();
 
-    ASSERT_THROW(track.Slice(-1s, 10s), RangeError);
-    ASSERT_THROW(track.Slice(50s, 61s), RangeError);
-    ASSERT_THROW(track.Slice(30s, 29s), RangeError);
-    ASSERT_THROW(track.Slice(30s, 30s), RangeError);
+    ASSERT_THROW(track.Slice(321s - 1s, 321s + 10s), RangeError);
+    ASSERT_THROW(track.Slice(321s + 50s, 321s + 61s), RangeError);
+    ASSERT_THROW(track.Slice(321s + 30s, 321s + 29s), RangeError);
+    ASSERT_THROW(track.Slice(321s + 30s, 321s + 30s), RangeError);
 }
 
 TEST(TrackTests, SliceCorrectRanges)
@@ -78,22 +78,22 @@ TEST(TrackTests, SliceCorrectRanges)
     auto container = Mp4Container{Serialize(GetTestData())};
     auto &track = container.GetTrack();
 
-    const auto seg1 = Segment{.offset = 0s,
+    const auto seg1 = Segment{.offset = 321s + 0s,
                               .duration = 10s,
                               .data = std::vector<std::byte>(1, 0xAB_b)};
-    const auto seg2 = Segment{.offset = 10s,
+    const auto seg2 = Segment{.offset = 321s + 10s,
                               .duration = 20s,
                               .data = std::vector<std::byte>(2, 0xAB_b)};
-    const auto seg3 = Segment{.offset = 30s,
+    const auto seg3 = Segment{.offset = 321s + 30s,
                               .duration = 30s,
                               .data = std::vector<std::byte>(3, 0xAB_b)};
 
-    ASSERT_EQ((std::vector<Segment>{seg1, seg2, seg3}), track.Slice(0s, 60s));
-    ASSERT_EQ((std::vector<Segment>{seg1}), track.Slice(0s, 10s));
-    ASSERT_EQ((std::vector<Segment>{seg2}), track.Slice(10s, 20s));
-    ASSERT_EQ((std::vector<Segment>{seg3}), track.Slice(30s, 60s));
-    ASSERT_EQ((std::vector<Segment>{seg1, seg2}), track.Slice(5s, 30s));
-    ASSERT_EQ((std::vector<Segment>{seg2, seg3}), track.Slice(15s, 60s));
+    ASSERT_EQ((std::vector<Segment>{seg1, seg2, seg3}), track.Slice(321s + 0s, 321s + 60s));
+    ASSERT_EQ((std::vector<Segment>{seg1}), track.Slice(321s + 0s, 321s + 10s));
+    ASSERT_EQ((std::vector<Segment>{seg2}), track.Slice(321s + 10s, 321s + 20s));
+    ASSERT_EQ((std::vector<Segment>{seg3}), track.Slice(321s + 30s, 321s + 60s));
+    ASSERT_EQ((std::vector<Segment>{seg1, seg2}), track.Slice(321s + 5s, 321s + 30s));
+    ASSERT_EQ((std::vector<Segment>{seg2, seg3}), track.Slice(321s + 15s, 321s + 60s));
 }
 
 }//unnamed namespace

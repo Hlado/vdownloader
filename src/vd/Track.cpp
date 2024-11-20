@@ -1,12 +1,15 @@
 #include "Track.h"
 #include "Ap4Helpers.h"
 #include "Errors.h"
+#include "Mp4Utils.h"
 #include "Utils.h"
 
 #include <format>
 
 namespace vd
 {
+
+using namespace internal;
 
 namespace
 {
@@ -112,8 +115,8 @@ std::chrono::nanoseconds Track::GetFinish() const
 
 void Track::LoadDescriptors(AP4_SidxAtom &sidxAtom)
 {
-    std::uint32_t dataOffsetAcc{0};
-    std::chrono::nanoseconds timeOffsetAcc{0};
+    auto dataOffsetAcc = std::uint32_t{0};
+    auto timeOffsetAcc = DurationNano(sidxAtom.GetEarliestPresentationTime(), mDecodingConfig.timescale);
     for(auto &ref : sidxAtom.GetReferences())
     {
         if(ref.m_ReferenceType == 1)
@@ -125,8 +128,7 @@ void Track::LoadDescriptors(AP4_SidxAtom &sidxAtom)
             throw ArgumentError("segment has zero size or duration");
         }
 
-        auto duration = std::chrono::nanoseconds{
-            ref.m_SubsegmentDuration * std::nano::den / mDecodingConfig.timescale};
+        auto duration = DurationNano(ref.m_SubsegmentDuration, mDecodingConfig.timescale);
 
         auto desc =
             SegmentDescriptor{.timeOffset = timeOffsetAcc,

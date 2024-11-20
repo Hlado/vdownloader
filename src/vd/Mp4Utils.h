@@ -17,6 +17,7 @@ namespace internal
 
 std::string AcronymToStr(AP4_UI32 val);
 std::unique_ptr<AP4_Atom> ReadNextAtom(std::shared_ptr<AP4_ByteStream> data);
+std::chrono::nanoseconds DurationNano(std::uint64_t dur, std::uint32_t timescale);
 std::chrono::nanoseconds DurationNano(std::uint32_t dur, std::uint32_t timescale);
 
 template <class DerivedT, class BaseT>

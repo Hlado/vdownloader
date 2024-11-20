@@ -39,11 +39,14 @@ std::unique_ptr<AP4_Atom> ReadNextAtom(std::shared_ptr<AP4_ByteStream> data)
     return nullptr;
 }
 
+std::chrono::nanoseconds DurationNano(std::uint64_t dur, std::uint32_t timescale)
+{
+    return std::chrono::nanoseconds{IntCast<std::int64_t>(dur) * std::nano::den / timescale};
+}
+
 std::chrono::nanoseconds DurationNano(std::uint32_t dur, std::uint32_t timescale)
 {
-    //It's impossible to overflow int64_t here, but real question is:
-    //is denominator always at least 64 bits long?
-    return std::chrono::nanoseconds{dur * std::nano::den / timescale};
+    return DurationNano(IntCast<std::uint64_t>(dur), timescale);
 }
 
 }//namespace internal

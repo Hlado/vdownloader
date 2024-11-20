@@ -5,6 +5,7 @@ set(SOURCE_FILES vd/Decoder.cpp
                  vd/OpenH264Decoder.cpp
                  vd/Options.cpp
                  vd/Sources.cpp
+                 vd/Tga.cpp
                  vd/Track.cpp)
 
 set(HEADER_FILES vd/Ap4ByteStream.h
@@ -18,6 +19,7 @@ set(HEADER_FILES vd/Ap4ByteStream.h
                  vd/Options.h
                  vd/Preprocessor.h
                  vd/Sources.h
+                 vd/Tga.h
                  vd/Track.h
                  vd/Utils.h)
 

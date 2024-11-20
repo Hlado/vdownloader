@@ -54,6 +54,7 @@ public:
     //it's not impossible that TimestampNext may start throwing earlier or return value when frames stream is ended
     std::chrono::nanoseconds TimestampNext() const;
     std::chrono::nanoseconds TimestampLast() const;
+    bool HasMore() const noexcept;
 
     //Those functions are written as exception safe as possible, but it's impossible
     //to guarantee that they will work correctly after exception due to external dependencies, so it's safer
@@ -214,6 +215,12 @@ std::chrono::nanoseconds DecoderBase<DecoderImplT>::TimestampLast() const
     }
 
     return mTimestamps[mNumFramesProcessed - 1] + mSegment.offset;
+}
+
+template <H264DecoderConcept DecoderImplT>
+bool DecoderBase<DecoderImplT>::HasMore() const noexcept
+{
+    return mNumFramesProcessed < mTimestamps.size();
 }
 
 template <H264DecoderConcept DecoderImplT>

@@ -271,19 +271,6 @@ TEST(DecoderTests, DecodingCorruptedH264Stream)
 namespace
 {
 
-/*template <std::ranges::range Range1, std::ranges::range Range2>
-bool IsUnitDataEqual(Range1 &&unit, Range2 &&data)
-{
-    using namespace std::ranges;
-
-    if(size(unit) < gNalUnitLengthSize)
-    {
-        throw ArgumentError("unit length is too small");
-    }
-
-    return equal(subrange(std::next(std::ranges::begin(unit),gNalUnitLengthSize),std::ranges::end(unit)),data);
-}*/
-
 template <std::ranges::range Range>
 ArgbImage MakeImage(Range &&r)
 {
@@ -306,30 +293,35 @@ TEST(DecoderTests, DecodingCorrectH264Stream)
     EXPECT_CALL(*h264Decoder,Retrieve)
         .WillOnce([](){ return std::optional<ArgbImage>{}; });
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_THROW(decoder.TimestampLast(), RangeError);
     ASSERT_EQ(10s, decoder.TimestampNext());
     auto frame = decoder.GetNext();
     ASSERT_TRUE(std::ranges::equal(gNalUnitData1,frame->image.data));
     ASSERT_EQ(10s,frame->timestamp);
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_EQ(10s,decoder.TimestampLast());
     ASSERT_EQ(11s, decoder.TimestampNext());
     frame = decoder.GetNext();
     ASSERT_TRUE(std::ranges::equal(gNalUnitData2,frame->image.data));
     ASSERT_EQ(11s,frame->timestamp);
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_EQ(11s,decoder.TimestampLast());
     ASSERT_EQ(12s, decoder.TimestampNext());
     frame = decoder.GetNext();
     ASSERT_TRUE(std::ranges::equal(gNalUnitData3,frame->image.data));
     ASSERT_EQ(12s,frame->timestamp);
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_EQ(12s,decoder.TimestampLast());
     ASSERT_EQ(13s, decoder.TimestampNext());
     frame = decoder.GetNext();
     ASSERT_TRUE(std::ranges::equal(gNalUnitData4,frame->image.data));
     ASSERT_EQ(13s,frame->timestamp);
 
+    ASSERT_FALSE(decoder.HasMore());
     ASSERT_EQ(13s,decoder.TimestampLast());
     ASSERT_THROW(decoder.TimestampNext(), RangeError);
     ASSERT_FALSE(decoder.GetNext());
@@ -354,30 +346,35 @@ TEST(DecoderTests, DecodingCorrectH264StreamDelayedDecoding)
         .WillOnce([](){ return MakeImage(gNalUnitData4); })
         .WillOnce([](){ return std::optional<ArgbImage>{}; });
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_THROW(decoder.TimestampLast(), RangeError);
     ASSERT_EQ(10s, decoder.TimestampNext());
     auto frame = decoder.GetNext();
     ASSERT_TRUE(std::ranges::equal(gNalUnitData1,frame->image.data));
     ASSERT_EQ(10s,frame->timestamp);
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_EQ(10s,decoder.TimestampLast());
     ASSERT_EQ(11s, decoder.TimestampNext());
     frame = decoder.GetNext();
     ASSERT_TRUE(std::ranges::equal(gNalUnitData2,frame->image.data));
     ASSERT_EQ(11s,frame->timestamp);
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_EQ(11s,decoder.TimestampLast());
     ASSERT_EQ(12s, decoder.TimestampNext());
     frame = decoder.GetNext();
     ASSERT_TRUE(std::ranges::equal(gNalUnitData3,frame->image.data));
     ASSERT_EQ(12s,frame->timestamp);
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_EQ(12s,decoder.TimestampLast());
     ASSERT_EQ(13s, decoder.TimestampNext());
     frame = decoder.GetNext();
     ASSERT_TRUE(std::ranges::equal(gNalUnitData4,frame->image.data));
     ASSERT_EQ(13s,frame->timestamp);
 
+    ASSERT_FALSE(decoder.HasMore());
     ASSERT_EQ(13s,decoder.TimestampLast());
     ASSERT_THROW(decoder.TimestampNext(), RangeError);
     ASSERT_FALSE(decoder.GetNext());
@@ -403,24 +400,28 @@ TEST(DecoderTests, DecodingCorrectH264NonDisplayableFrame)
     EXPECT_CALL(*h264Decoder,Retrieve)
         .WillOnce([](){ return std::optional<ArgbImage>{}; });
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_THROW(decoder.TimestampLast(), RangeError);
     ASSERT_EQ(10s, decoder.TimestampNext());
     auto frame = decoder.GetNext();
     ASSERT_TRUE(std::ranges::equal(gNalUnitData1,frame->image.data));
     ASSERT_EQ(10s,frame->timestamp);
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_EQ(10s,decoder.TimestampLast());
     ASSERT_EQ(11s, decoder.TimestampNext());
     frame = decoder.GetNext();
     ASSERT_TRUE(std::ranges::equal(gNalUnitData2,frame->image.data));
     ASSERT_EQ(11s,frame->timestamp);
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_EQ(11s,decoder.TimestampLast());
     ASSERT_EQ(13s, decoder.TimestampNext());
     frame = decoder.GetNext();
     ASSERT_TRUE(std::ranges::equal(gNalUnitData4,frame->image.data));
     ASSERT_EQ(13s,frame->timestamp);
 
+    ASSERT_FALSE(decoder.HasMore());
     ASSERT_EQ(13s,decoder.TimestampLast());
     ASSERT_THROW(decoder.TimestampNext(), RangeError);
     ASSERT_FALSE(decoder.GetNext());
@@ -440,26 +441,31 @@ TEST(DecoderTests, DecodingCorrectH264SkippingFrames)
     EXPECT_CALL(*h264Decoder,Retrieve)
         .WillOnce([](){ return std::optional<ArgbImage>{}; });
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_THROW(decoder.TimestampLast(), RangeError);
     ASSERT_EQ(10s, decoder.TimestampNext());
     auto frame = decoder.GetNext();
     ASSERT_TRUE(std::ranges::equal(gNalUnitData1,frame->image.data));
     ASSERT_EQ(10s,frame->timestamp);
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_EQ(10s,decoder.TimestampLast());
     ASSERT_EQ(11s, decoder.TimestampNext());
     decoder.SkipNext();
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_EQ(11s,decoder.TimestampLast());
     ASSERT_EQ(12s, decoder.TimestampNext());
     decoder.SkipNext();
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_EQ(12s,decoder.TimestampLast());
     ASSERT_EQ(13s, decoder.TimestampNext());
     frame = decoder.GetNext();
     ASSERT_TRUE(std::ranges::equal(gNalUnitData4,frame->image.data));
     ASSERT_EQ(13s,frame->timestamp);
 
+    ASSERT_FALSE(decoder.HasMore());
     ASSERT_EQ(13s,decoder.TimestampLast());
     ASSERT_THROW(decoder.TimestampNext(), RangeError);
     ASSERT_FALSE(decoder.GetNext());
@@ -483,18 +489,21 @@ TEST(DecoderTests, DecodingCorrectH264MissingTrunEntry)
     EXPECT_CALL(*h264Decoder,Decode)
         .WillRepeatedly([](auto const &data){ return MakeImage(data); });
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_THROW(decoder.TimestampLast(), RangeError);
     ASSERT_EQ(10s, decoder.TimestampNext());
     auto frame = decoder.GetNext();
     ASSERT_TRUE(std::ranges::equal(gNalUnitData1,frame->image.data));
     ASSERT_EQ(10s,frame->timestamp);
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_EQ(10s,decoder.TimestampLast());
     ASSERT_EQ(11s, decoder.TimestampNext());
     frame = decoder.GetNext();
     ASSERT_TRUE(std::ranges::equal(gNalUnitData2,frame->image.data));
     ASSERT_EQ(11s,frame->timestamp);
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_EQ(11s,decoder.TimestampLast());
     ASSERT_EQ(12s, decoder.TimestampNext());
     frame = decoder.GetNext();
@@ -502,14 +511,17 @@ TEST(DecoderTests, DecodingCorrectH264MissingTrunEntry)
     ASSERT_EQ(12s,frame->timestamp);
 
     //This part looks weird but it's because timestamps and h264 stream may be not concordant, so it is as it is
+    ASSERT_FALSE(decoder.HasMore());
     ASSERT_EQ(12s,decoder.TimestampLast());
     ASSERT_THROW(decoder.TimestampNext(), RangeError);
     ASSERT_THROW(decoder.GetNext(), RangeError);
 
+    ASSERT_FALSE(decoder.HasMore());
     ASSERT_THROW(decoder.TimestampLast(), RangeError);
     ASSERT_THROW(decoder.TimestampNext(), RangeError);
     decoder.SkipNext();
 
+    ASSERT_FALSE(decoder.HasMore());
     ASSERT_THROW(decoder.TimestampLast(), RangeError);
     ASSERT_THROW(decoder.TimestampNext(), RangeError);
     ASSERT_FALSE(decoder.GetNext());
@@ -531,24 +543,28 @@ TEST(DecoderTests, DecodingCorrectH264MissingH264Frame)
     EXPECT_CALL(*h264Decoder,Decode)
         .WillRepeatedly([](auto const &data){ return MakeImage(data); });
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_THROW(decoder.TimestampLast(), RangeError);
     ASSERT_EQ(10s, decoder.TimestampNext());
     auto frame = decoder.GetNext();
     ASSERT_TRUE(std::ranges::equal(gNalUnitData1,frame->image.data));
     ASSERT_EQ(10s,frame->timestamp);
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_EQ(10s,decoder.TimestampLast());
     ASSERT_EQ(11s, decoder.TimestampNext());
     frame = decoder.GetNext();
     ASSERT_TRUE(std::ranges::equal(gNalUnitData2,frame->image.data));
     ASSERT_EQ(11s,frame->timestamp);
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_EQ(11s,decoder.TimestampLast());
     ASSERT_EQ(12s, decoder.TimestampNext());
     frame = decoder.GetNext();
     ASSERT_TRUE(std::ranges::equal(gNalUnitData3,frame->image.data));
     ASSERT_EQ(12s,frame->timestamp);
 
+    ASSERT_TRUE(decoder.HasMore());
     ASSERT_EQ(12s,decoder.TimestampLast());
     ASSERT_EQ(13s,decoder.TimestampNext());
     ASSERT_FALSE(decoder.GetNext());

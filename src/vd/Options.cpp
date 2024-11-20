@@ -49,14 +49,14 @@ Options::Segment ParseSegment(const std::string &fromStr, const std::string &toS
     auto from = ParseTimestamp(fromStr);
     auto to = ParseTimestamp(toStr);
 
-    if(from > to)
+    if(from >= to)
     {
-        throw ArgumentError(std::format("segment start ({}) is greater than finish ({})",fromStr,toStr));
+        throw ArgumentError(std::format("segment finish ({}) must be greater than start ({})", toStr, fromStr));
     }
 
     return Options::Segment {.from = std::move(from),
                              .to = std::move(to),
-                             .numFrames = numFramesStr.empty() ? 0 : IntCast<std::uint32_t>( std::stoi(numFramesStr))};
+                             .numFrames = numFramesStr.empty() ? 0 : IntCast<std::uint32_t>(std::stoi(numFramesStr))};
 }
 
 Options::Segment ParseSegment(const std::string &str)
@@ -91,10 +91,18 @@ std::optional<Options> ParseOptions(int argc, const char * const * argv)
 {
     args::ArgumentParser parser("Video frame extractor program");
     args::HelpFlag help(parser, "help", "Show help", {'h', "help"});
-    args::ValueFlag<std::string> format(parser, "format", "File names format (n - segment index (1-based), i - frame index (1-based), t - frame timestamp in XsYms format)", {'f',"format"},"s{n}f{i}({t}).tga");
+    args::ValueFlag<std::string> format(
+        parser,
+        "format",
+        "File names format (n - segment index (1-based), i - frame index (1-based), t - frame timestamp in XsYms format)",
+        {'f',"format"},
+        "s{n}f{i}({t}).tga");
     args::Positional<std::string> source(parser, "source", "Video source (url/file)", args::Options::Required);
     args::PositionalList<std::string> segments(
-        parser, "segments", "Video segments to extract <from-to[:n]>... (from/to - timestamps in XsYms format, n - number of frames to extract besides first and last)", args::Options::Required);
+        parser,
+        "segments",
+        "Video segments to extract <from-to[:n]>... (from/to - timestamps in XsYms format, n - number of frames to extract besides first and last)",
+        args::Options::Required);
 
     try
     {

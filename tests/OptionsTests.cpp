@@ -44,6 +44,9 @@ TEST(OptionsTests, BadSegment)
     auto argv = std::array{"app_path", "url", "10s-20ms"};
     ASSERT_THROW(Parse(argv), Error);
 
+    argv[2] = "10s-10s";
+    ASSERT_THROW(Parse(argv), ArgumentError);
+
     argv[2] = "1s-1020ms";
     ASSERT_THROW(Parse(argv), RangeError);
 }

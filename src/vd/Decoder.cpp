@@ -14,6 +14,15 @@ Frame Frame::Create(const ArgbImage &img, std::chrono::nanoseconds timestamp)
 namespace internal
 {
 
+namespace testing
+{
+
+thread_local int gDecoderBase_ReleaseBuffer_ThrowValue;
+
+}//namespace testing
+
+
+
 std::size_t AssertDataOffset(const Segment &segment, AP4_TrunAtom &trunAtom)
 {
     if(trunAtom.GetDataOffset() < 0)

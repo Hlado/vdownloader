@@ -517,7 +517,7 @@ TEST(DecoderTests, DecodingCorrectH264MissingTrunEntry)
     ASSERT_THROW(decoder.GetNext(), RangeError);
 
     ASSERT_FALSE(decoder.HasMore());
-    ASSERT_THROW(decoder.TimestampLast(), RangeError);
+    ASSERT_EQ(12s,decoder.TimestampLast());
     ASSERT_THROW(decoder.TimestampNext(), RangeError);
     decoder.SkipNext();
 
@@ -568,6 +568,32 @@ TEST(DecoderTests, DecodingCorrectH264MissingH264Frame)
     ASSERT_EQ(12s,decoder.TimestampLast());
     ASSERT_EQ(13s,decoder.TimestampNext());
     ASSERT_FALSE(decoder.GetNext());
+}
+
+TEST(DecoderTests, ExceptionSafetyGetNext)
+{
+    auto segment = MakeSegment(DefaultTestData());
+    auto h264DecoderWrapper = MockH264DecoderWrapper{};
+    auto h264Decoder = h264DecoderWrapper.impl.get();
+    auto config = DefaultConfig();
+    auto decoder = DecoderBase<MockH264DecoderWrapper>{config,segment,std::move(h264DecoderWrapper)};
+
+    EXPECT_CALL(*h264Decoder,Decode)
+        .WillRepeatedly([](auto const &data){ return MakeImage(data); });
+
+    vd::internal::testing::gDecoderBase_ReleaseBuffer_ThrowValue = 1;
+    ASSERT_THROW(decoder.GetNext(),int);
+    ASSERT_THROW(decoder.TimestampLast(), RangeError);
+    ASSERT_EQ(10s, decoder.TimestampNext());
+
+    vd::internal::testing::gDecoderBase_ReleaseBuffer_ThrowValue = 0;
+    auto frame = decoder.GetNext();
+    ASSERT_TRUE(std::ranges::equal(gNalUnitData1,frame->image.data));
+    ASSERT_EQ(10s,frame->timestamp);
+    ASSERT_TRUE(decoder.HasMore());
+    ASSERT_EQ(10s,decoder.TimestampLast());
+    ASSERT_EQ(11s, decoder.TimestampNext());
+    
 }
 
 }//unnamed namespace

@@ -27,6 +27,8 @@ struct Frame final
     static Frame Create(const ArgbImage &img, std::chrono::nanoseconds timestamp);
 };
 
+
+
 template <class T>
 concept H264DecoderConcept =
     requires(T v, std::size_t pos, std::span<const std::byte> nalUnit)
@@ -34,6 +36,8 @@ concept H264DecoderConcept =
     { v.Decode(nalUnit) } -> std::same_as<std::optional<ArgbImage>>;
     { v.Retrieve() } -> std::same_as<std::optional<ArgbImage>>;
 };
+
+
 
 //There's an assumption that decoder returns frames in presentation order and it's coordinated with "trun" atom table,
 //and also doesn't return non-displayable frames that have timestamps out of bounds, otherwise behavior may be weird
@@ -80,6 +84,8 @@ private:
     std::optional<Frame> ReleaseBuffer();
     void DiscardBuffer();
 };
+
+using Decoder = DecoderBase<OpenH264Decoder>;
 
 namespace internal
 {
@@ -313,17 +319,24 @@ void DecoderBase<DecoderImplT>::PrepareNext()
 
         if(mPendingBuffer)
         {
-            mNumFramesProcessed += 1;
             return;
         }
     }
 
     mPendingBuffer = mDecoder.Retrieve();
-    if(mPendingBuffer)
-    {
-        mNumFramesProcessed += 1;
-    }
 }
+
+namespace internal
+{
+
+namespace testing
+{
+
+extern thread_local int gDecoderBase_ReleaseBuffer_ThrowValue;
+
+}//namespace testing
+
+}//namespace internal
 
 template <H264DecoderConcept DecoderImplT>
 std::optional<Frame> DecoderBase<DecoderImplT>::ReleaseBuffer()
@@ -331,8 +344,17 @@ std::optional<Frame> DecoderBase<DecoderImplT>::ReleaseBuffer()
     static_assert(std::is_nothrow_move_assignable_v<Frame> &&
                   std::is_nothrow_move_constructible_v<Frame>);
 
-    Frame ret = Frame::Create(*mPendingBuffer, TimestampLast());
+    Frame ret = Frame::Create(*mPendingBuffer, TimestampNext());
+
+    //This is arguably not best approach, but to test exception safety we either need to introduce ugly mockable object,
+    //or hide something like this to throw conditionally
+    if(internal::testing::gDecoderBase_ReleaseBuffer_ThrowValue != 0)
+    {
+        throw internal::testing::gDecoderBase_ReleaseBuffer_ThrowValue;
+    }
+
     mPendingBuffer.reset();
+    mNumFramesProcessed += 1;
     return ret;
 }
 
@@ -340,11 +362,8 @@ template <H264DecoderConcept DecoderImplT>
 void DecoderBase<DecoderImplT>::DiscardBuffer()
 {
     mPendingBuffer.reset();
+    mNumFramesProcessed += 1;
 }
-
-
-
-using Decoder = DecoderBase<OpenH264Decoder>;
 
 } //namespace vd
 

@@ -365,6 +365,125 @@ void DecoderBase<DecoderImplT>::DiscardBuffer()
     mNumFramesProcessed += 1;
 }
 
+
+
+
+
+template <class T>
+concept DecoderConcept =
+    requires(T v, const T vconst)
+{
+    { vconst.TimestampNext() } -> std::same_as<std::chrono::nanoseconds>;
+    { vconst.TimestampLast() } -> std::same_as<std::chrono::nanoseconds>;
+    { vconst.HasMore() } noexcept -> std::same_as<bool>;
+    { v.GetNext() } -> std::same_as<std::optional<Frame>>;
+    { v.SkipNext() } -> std::same_as<void>;
+};
+
+//Wrapper for easy decoding sequential segments
+template <DecoderConcept DecoderImplT>
+class SerialDecoderBase final
+{
+public:
+    SerialDecoderBase(std::vector<DecoderImplT> &&decoders);
+
+    std::chrono::nanoseconds TimestampNext() const;
+    std::chrono::nanoseconds TimestampLast() const;
+    bool HasMore() const noexcept;
+    std::optional<Frame> GetNext();
+    void SkipNext();
+
+private:
+    std::vector<DecoderImplT> mDecoders;
+    mutable std::vector<DecoderImplT>::iterator mCurrentIt;
+    std::vector<DecoderImplT>::iterator mLastTimestampIt;
+
+    void EnsureThereIsMoreOrEnd() const;
+};
+
+using SerialDecoder = SerialDecoderBase<Decoder>;
+
+template <DecoderConcept DecoderImplT>
+SerialDecoderBase<DecoderImplT>::SerialDecoderBase(std::vector<DecoderImplT> &&decoders)
+    : mDecoders(std::move(decoders)),
+      mCurrentIt(mDecoders.begin()),
+      mLastTimestampIt(mCurrentIt)
+{
+    if(mDecoders.empty())
+    {
+        throw ArgumentError{"at least one decoder is required"};
+    }
+}
+
+template <DecoderConcept DecoderImplT>
+std::optional<Frame> SerialDecoderBase<DecoderImplT>::GetNext()
+{
+    EnsureThereIsMoreOrEnd();
+
+    if(mCurrentIt == mDecoders.end())
+    {
+        return {};
+    }
+
+    mLastTimestampIt = mCurrentIt;
+    return mCurrentIt->GetNext();
+}
+
+template <DecoderConcept DecoderImplT>
+void SerialDecoderBase<DecoderImplT>::SkipNext()
+{
+    EnsureThereIsMoreOrEnd();
+
+    if(mCurrentIt == mDecoders.end())
+    {
+        return;
+    }
+
+    mLastTimestampIt = mCurrentIt;
+    return mCurrentIt->SkipNext();
+}
+
+template <DecoderConcept DecoderImplT>
+std::chrono::nanoseconds SerialDecoderBase<DecoderImplT>::TimestampNext() const
+{
+    EnsureThereIsMoreOrEnd();
+
+    if(mCurrentIt == mDecoders.end())
+    {
+        throw RangeError{"no more frames"};
+    }
+
+    return mCurrentIt->TimestampNext();
+}
+
+template <DecoderConcept DecoderImplT>
+std::chrono::nanoseconds SerialDecoderBase<DecoderImplT>::TimestampLast() const
+{
+    if(mCurrentIt == mDecoders.end())
+    {
+        return mDecoders.back().TimestampLast();
+    }
+
+    return mLastTimestampIt->TimestampLast();
+}
+
+template <DecoderConcept DecoderImplT>
+bool SerialDecoderBase<DecoderImplT>::HasMore() const noexcept
+{
+    EnsureThereIsMoreOrEnd();
+
+    return mCurrentIt != mDecoders.end();
+}
+
+template <DecoderConcept DecoderImplT>
+void SerialDecoderBase<DecoderImplT>::EnsureThereIsMoreOrEnd() const
+{
+    while(mCurrentIt != mDecoders.end() && !mCurrentIt->HasMore())
+    {
+        std::advance(mCurrentIt, 1);
+    }
+}
+
 } //namespace vd
 
 #endif //VDOWNLOADER_VD_DECODER_H_

@@ -593,7 +593,109 @@ TEST(DecoderTests, ExceptionSafetyGetNext)
     ASSERT_TRUE(decoder.HasMore());
     ASSERT_EQ(10s,decoder.TimestampLast());
     ASSERT_EQ(11s, decoder.TimestampNext());
-    
+}
+
+
+
+class MockDecoder
+{
+public:
+    MOCK_METHOD(std::chrono::nanoseconds, TimestampNext, (), (const));
+    MOCK_METHOD(std::chrono::nanoseconds, TimestampLast, (), (const));
+    MOCK_METHOD(bool, HasMore, (), (const, noexcept));
+    MOCK_METHOD(std::optional<Frame>, GetNext, (), (const));
+    MOCK_METHOD(void, SkipNext, ());
+};
+
+class MockDecoderWrapper
+{
+public:
+    std::chrono::nanoseconds TimestampNext() const
+    {
+        return impl->TimestampNext();
+    }
+
+    std::chrono::nanoseconds TimestampLast() const
+    {
+        return impl->TimestampLast();
+    }
+
+    bool HasMore() const noexcept
+    {
+        return impl->HasMore();
+    }
+
+    std::optional<Frame> GetNext()
+    {
+        return impl->GetNext();
+    }
+
+    void SkipNext()
+    {
+        impl->SkipNext();
+    }
+
+    std::unique_ptr<MockDecoder> impl = std::make_unique<MockDecoder>();
+};
+
+TEST(SerialDecoderTests, ConstructionEmpty)
+{
+    ASSERT_THROW(SerialDecoder{{}}, ArgumentError);
+}
+
+TEST(SerialDecoderTests, DecodingTwoSegments)
+{
+    auto decoders = std::vector<MockDecoderWrapper>{};
+    decoders.emplace_back();
+    decoders.emplace_back();
+    auto decoder1 = decoders[0].impl.get();
+    auto decoder2 = decoders[1].impl.get();
+    SerialDecoderBase serialDecoder{std::move(decoders)};
+
+    auto counter1 = std::chrono::nanoseconds{0};
+    EXPECT_CALL(*decoder1, GetNext)
+        .WillOnce([&counter1]()->std::optional<Frame>{ return Frame{.timestamp = ++counter1}; })
+        .WillRepeatedly(Return(std::optional<Frame>{}));
+    ON_CALL(*decoder1, TimestampNext)
+        .WillByDefault([&counter1]()->std::chrono::nanoseconds{ return counter1.count() != 0 ? throw RangeError{} : counter1 + 1ns; });
+    ON_CALL(*decoder1, TimestampLast)
+        .WillByDefault([&counter1]()->std::chrono::nanoseconds{ return counter1.count() == 0 ? throw RangeError{} : counter1; });
+    ON_CALL(*decoder1, HasMore)
+        .WillByDefault([&counter1](){ return counter1.count() == 0 ; });
+
+    auto counter2 = std::chrono::nanoseconds{1};
+    EXPECT_CALL(*decoder2, SkipNext).WillOnce([&counter2]() { ++counter2; });
+    EXPECT_CALL(*decoder2, GetNext)
+        .WillOnce([&counter2]()->std::optional<Frame>{ return Frame{.timestamp = ++counter2}; })
+        .WillRepeatedly(Return(std::optional<Frame>{}));
+    ON_CALL(*decoder2, TimestampNext)
+        .WillByDefault([&counter2]()->std::chrono::nanoseconds{ return counter2.count() > 2 ? throw RangeError{} : counter2 + 1ns; });
+    ON_CALL(*decoder2, TimestampLast)
+        .WillByDefault([&counter2]()->std::chrono::nanoseconds{ return counter2.count() == 1 ? throw RangeError{} : counter2; });
+    ON_CALL(*decoder2, HasMore)
+        .WillByDefault([&counter2](){ return counter2.count() < 3; });
+
+    ASSERT_TRUE(serialDecoder.HasMore());
+    ASSERT_THROW(serialDecoder.TimestampLast(), RangeError);
+    ASSERT_EQ(1ns, serialDecoder.TimestampNext());
+    auto frame = serialDecoder.GetNext();
+    ASSERT_EQ(1ns,frame->timestamp);
+
+    ASSERT_TRUE(serialDecoder.HasMore());
+    ASSERT_EQ(1ns,serialDecoder.TimestampLast());
+    ASSERT_EQ(2ns, serialDecoder.TimestampNext());
+    serialDecoder.SkipNext();
+
+    ASSERT_TRUE(serialDecoder.HasMore());
+    ASSERT_EQ(2ns,serialDecoder.TimestampLast());
+    ASSERT_EQ(3ns, serialDecoder.TimestampNext());
+    frame = serialDecoder.GetNext();
+    ASSERT_EQ(3ns,frame->timestamp);
+
+    ASSERT_FALSE(serialDecoder.HasMore());
+    ASSERT_EQ(3ns,serialDecoder.TimestampLast());
+    ASSERT_THROW(serialDecoder.TimestampNext(), RangeError);
+    ASSERT_FALSE(serialDecoder.GetNext());
 }
 
 }//unnamed namespace

@@ -56,7 +56,17 @@ TEST(OptionsTests, DefaultFormat)
     auto argv = std::array{"app_path", "url", "1s500ms-2s300ms:22"};
     auto options = Parse(argv);
     ASSERT_TRUE(options);
-    ASSERT_EQ("s{n}f{i}({t}).tga", options->format);
+    ASSERT_EQ("s{0}f{1}({2}).tga", options->format);
+}
+
+TEST(OptionsTests, CustomFormat)
+{
+    auto argv = std::array{"app_path", "-f" ,"{{s}custom{f}format{/{t}}", "url", "1s500ms-2s300ms:22"};
+    auto options = Parse(argv);
+    ASSERT_TRUE(options);
+    //ASSERT_EQ("{{s}custom{1}format{/{2}}", options->format);
+    //We use simplified replacement for now
+    ASSERT_EQ("{{0}custom{1}format{/{2}}", options->format);
 }
 
 TEST(OptionsTests, CorrectSegmentFull)

@@ -83,6 +83,27 @@ std::vector<Options::Segment> ParseSegments(const args::PositionalList<std::stri
     return res;
 }
 
+std::string ConvertFormat(const std::string &format)
+{
+    //Ok, for proper replacement negative lookahead support is required (to exclude {{ escape sequence),
+    //but it requires fair amount of extra work and is not worth the effort
+    static const auto segIdxRe = std::regex(R"(\{s)");
+    static const auto frameIdxRe = std::regex(R"(\{f)");
+    static const auto tsRe = std::regex(R"(\{t)");
+    
+    return
+        std::regex_replace(
+            std::regex_replace(
+                std::regex_replace(
+                    format,
+                    segIdxRe,
+                    "{0"),
+                frameIdxRe,
+                "{1"),
+            tsRe,
+            "{2");
+}
+
 }//unnamed namespace
 
 
@@ -94,9 +115,9 @@ std::optional<Options> ParseOptions(int argc, const char * const * argv)
     args::ValueFlag<std::string> format(
         parser,
         "format",
-        "File names format (n - segment index (1-based), i - frame index (1-based), t - frame timestamp in XsYms format)",
+        "File names format (s - segment index (1-based), f - frame index (1-based), t - frame timestamp in XsYms format)",
         {'f',"format"},
-        "s{n}f{i}({t}).tga");
+        "s{s}f{f}({t}).tga");
     args::Positional<std::string> source(parser, "source", "Video source (url/file)", args::Options::Required);
     args::PositionalList<std::string> segments(
         parser,
@@ -108,7 +129,7 @@ std::optional<Options> ParseOptions(int argc, const char * const * argv)
     {
         parser.ParseCLI(argc, argv);
 
-        return Options{.format = format.Get(),
+        return Options{.format = ConvertFormat(format.Get()),
                        .videoUrl = source.Get(),
                        .segments = ParseSegments(segments)};
     }

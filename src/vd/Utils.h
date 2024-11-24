@@ -187,99 +187,90 @@ constexpr RetT ThrowArithmeticOp(NoThrowOpT op, T l, U r, Args... args)
 
 } //namespace internal
 
-//Semantic of following functions is like (RetT)((RetT)(l <op> r) <op> args)...
+//Semantic of following functions is like (T)((T)(l <op> r) <op> args)...
 //for exact details about type casts look into binary versions.
 //It seems narrowing cast of every intermediate result doesn't affect final result at all
-template<std::unsigned_integral RetT,
-         std::unsigned_integral T,
+template<std::unsigned_integral T,
          std::unsigned_integral U,
          std::unsigned_integral... Args>
-constexpr RetT Add(bool &overflow, T l, U r, Args... args)
+constexpr T Add(bool &overflow, T l, U r, Args... args)
 {
-    RetT (*op)(bool &, T, U) = Add;
-    return internal::NoThrowArithmeticOp<RetT>(overflow, op, l, r, args...);
+    T (*op)(bool &, T, U) = Add;
+    return internal::NoThrowArithmeticOp<T>(overflow, op, l, r, args...);
 }
 
-template<std::unsigned_integral RetT,
-         std::unsigned_integral T,
+template<std::unsigned_integral T,
          std::unsigned_integral U,
          std::unsigned_integral... Args>
-constexpr RetT Add(T l, U r, Args... args)
+constexpr T Add(T l, U r, Args... args)
 {
-    RetT (*op)(bool &, T, U, Args...) = Add;
-    return internal::ThrowArithmeticOp<RetT>(op, l, r, args...);
+    T (*op)(bool &, T, U, Args...) = Add;
+    return internal::ThrowArithmeticOp<T>(op, l, r, args...);
 }
 
-template<std::unsigned_integral RetT,
-         std::unsigned_integral T,
+template<std::unsigned_integral T,
          std::unsigned_integral U,
          std::unsigned_integral... Args>
-constexpr RetT Sub(bool &overflow, T l, U r, Args... args)
+constexpr T Sub(bool &overflow, T l, U r, Args... args)
 {
-    RetT (*op)(bool &, T, U) = Sub;
-    return internal::NoThrowArithmeticOp<RetT>(overflow, op, l, r, args...);
+    T (*op)(bool &, T, U) = Sub;
+    return internal::NoThrowArithmeticOp<T>(overflow, op, l, r, args...);
 }
 
-template<std::unsigned_integral RetT,
-         std::unsigned_integral T,
+template<std::unsigned_integral T,
          std::unsigned_integral U,
          std::unsigned_integral... Args>
-constexpr RetT Sub(T l, U r, Args... args)
+constexpr T Sub(T l, U r, Args... args)
 {
-    RetT (*op)(bool &, T, U, Args...) = Sub;
-    return internal::ThrowArithmeticOp<RetT>(op, l, r, args...);
+    T (*op)(bool &, T, U, Args...) = Sub;
+    return internal::ThrowArithmeticOp<T>(op, l, r, args...);
 }
 
-template<std::unsigned_integral RetT,
-         std::unsigned_integral T,
+template<std::unsigned_integral T,
          std::unsigned_integral U,
          std::unsigned_integral... Args>
-constexpr RetT Mul(bool &overflow, T l, U r, Args... args)
+constexpr T Mul(bool &overflow, T l, U r, Args... args)
 {
-    RetT (*op)(bool &, T, U) = Mul;
-    return internal::NoThrowArithmeticOp<RetT>(overflow, op, l, r, args...);
+    T (*op)(bool &, T, U) = Mul;
+    return internal::NoThrowArithmeticOp<T>(overflow, op, l, r, args...);
 }
 
-template<std::unsigned_integral RetT,
-         std::unsigned_integral T,
+template<std::unsigned_integral T,
          std::unsigned_integral U,
          std::unsigned_integral... Args>
-constexpr RetT Mul(T l, U r, Args... args)
+constexpr T Mul(T l, U r, Args... args)
 {
-    RetT (*op)(bool &, T, U, Args...) = Mul;
-    return internal::ThrowArithmeticOp<RetT>(op, l, r, args...);
+    T (*op)(bool &, T, U, Args...) = Mul;
+    return internal::ThrowArithmeticOp<T>(op, l, r, args...);
 }
 
-template<std::unsigned_integral RetT,
-         std::unsigned_integral T,
+template<std::unsigned_integral T,
          std::unsigned_integral U,
          std::unsigned_integral... Args>
 constexpr bool WouldOverflowAdd(T l, U r, Args... args)
 {
     bool ret;
-    Add<RetT>(ret, l, r, args...);
+    Add<T>(ret, l, r, args...);
     return ret;
 }
 
-template<std::unsigned_integral RetT,
-         std::unsigned_integral T,
+template<std::unsigned_integral T,
          std::unsigned_integral U,
          std::unsigned_integral... Args>
 constexpr bool WouldOverflowSub(T l, U r, Args... args)
 {
     bool ret;
-    Sub<RetT>(ret, l, r, args...);
+    Sub<T>(ret, l, r, args...);
     return ret;
 }
 
-template<std::unsigned_integral RetT,
-         std::unsigned_integral T,
+template<std::unsigned_integral T,
          std::unsigned_integral U,
          std::unsigned_integral... Args>
 constexpr bool WouldOverflowMul(T l, U r, Args... args)
 {
     bool ret;
-    Mul<RetT>(ret, l, r, args...);
+    Mul<T>(ret, l, r, args...);
     return ret;
 }
 

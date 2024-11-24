@@ -73,40 +73,51 @@ TEST(UtilsTests, UintOverflow)
 
 TEST(UtilsTests, Add)
 {
-    ASSERT_NO_THROW(Add<std::uint8_t>(0u, 255u));
-    ASSERT_THROW(Add<std::uint8_t>(0u, 255u, 1u), RangeError);
-    ASSERT_THROW(Add<std::uint8_t>(1u, 255u), RangeError);
+    ASSERT_NO_THROW(Add(255_u8, 0_u8));
+    ASSERT_THROW(Add(255_u8, 1_u8), RangeError);
 
-    ASSERT_NO_THROW(Add<std::uint64_t>(0_u8, 255_u8));
-    ASSERT_NO_THROW(Add<std::uint64_t>(1_u8, 255_u8));
+    ASSERT_NO_THROW(Add(65535_u16, 0_u8));
+    ASSERT_THROW(Add(65535_u16, 1_u8), RangeError);
 
-    ASSERT_NO_THROW(Add<std::uint64_t>(0xFFFFFFFF_u32, 0xFFFFFFFF_u32));
+    ASSERT_NO_THROW(Add(65535_u16, 0_u32));
+    ASSERT_THROW(Add(65535_u16, 1_u32), RangeError);
+    ASSERT_THROW(Add(65535_u16, 65536_u32), RangeError);
+
+    ASSERT_NO_THROW(Add(0xFFFFFFF0_u32, 0x0E_u16, 1_u8));
+    ASSERT_THROW(Add(0xFFFFFFF1_u32, 0x0E_u16, 1_u8), RangeError);
 }
+
 
 TEST(UtilsTests, Sub)
 {
-    ASSERT_NO_THROW(Sub<std::uint8_t>(1u, 1u));
-    ASSERT_THROW(Sub<std::uint8_t>(1u, 1u, 1u), RangeError);
-    ASSERT_THROW(Sub<std::uint8_t>(0u, 1u), RangeError);
-    ASSERT_NO_THROW(Sub<std::uint8_t>(65536u, 65281u));
-    ASSERT_THROW(Sub<std::uint8_t>(65536u, 65280u), RangeError);
+    ASSERT_NO_THROW(Sub(1_u8, 1_u8));
+    ASSERT_THROW(Sub(0_u8, 1_u8), RangeError);
 
-    ASSERT_NO_THROW(Sub<std::uint64_t>(1_u8, 1_u8));
-    ASSERT_THROW(Sub<std::uint64_t>(0_u8, 1_u8), RangeError);
-    ASSERT_NO_THROW(Sub<std::uint64_t>(65536_u32, 65281_u32));
-    ASSERT_NO_THROW(Sub<std::uint64_t>(65536_u32, 65280_u32));
+    ASSERT_NO_THROW(Sub(1_u16, 1_u8));
+    ASSERT_THROW(Sub(0_u16, 1_u8), RangeError);
+
+    ASSERT_NO_THROW(Sub(65535_u16, 65535_u32));
+    ASSERT_THROW(Sub(65535_u16, 65536_u32), RangeError);
+    ASSERT_THROW(Sub(0_u16, 65536_u32), RangeError);
+
+    ASSERT_NO_THROW(Sub(0xFFFF_u32, 0xFFF0_u16, 0x0F_u8));
+    ASSERT_THROW(Sub(0xFFFF_u32, 0xFFF0_u16, 0x10_u8), RangeError);
 }
 
 TEST(UtilsTests, Mul)
 {
-    ASSERT_NO_THROW(Mul<std::uint8_t>(51_u8, 5_u8));
-    ASSERT_THROW(Mul<std::uint8_t>(51_u8, 5_u8, 2_u8), RangeError);
-    ASSERT_THROW(Mul<std::uint8_t>(128_u8, 2_u8), RangeError);
+    ASSERT_NO_THROW(Mul(51_u8, 5_u8));
+    ASSERT_THROW(Mul(128_u8, 2_u8), RangeError);
 
-    ASSERT_NO_THROW(Mul<std::uint64_t>(51_u8, 5_u8));
-    ASSERT_NO_THROW(Mul<std::uint64_t>(128_u8, 2_u8));
+    ASSERT_NO_THROW(Mul(0x101_u16, 0xFF_u8));
+    ASSERT_THROW(Mul(0x102_u16, 0xFF_u8), RangeError);
 
-    ASSERT_NO_THROW(Mul<std::uint64_t>(0xFFFFFFFF_u32, 0xFFFFFFFF_u32));
+    ASSERT_NO_THROW(Mul(0x101_u16, 0xFF_u32));
+    ASSERT_THROW(Mul(0x102_u16, 0xFF_u32), RangeError);
+    ASSERT_THROW(Mul(0x101_u16, 0xFFFF_u32), RangeError);
+
+    ASSERT_NO_THROW(Mul(0x10001_u32, 0x101_u16, 0xFF_u8));
+    ASSERT_THROW(Mul(0x10002_u32, 0x101_u16, 0xFF_u8), RangeError);
 }
 
 TEST(UtilsTests, UintCast)

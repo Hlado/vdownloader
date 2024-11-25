@@ -230,4 +230,10 @@ void WriteTga(std::ostream &stream, const std::vector<std::byte> &pixels, std::s
     }
 }
 
+void WriteTga(const std::filesystem::path &path, const std::vector<std::byte> &pixels, std::size_t width)
+{
+    std::ofstream fs(path, std::ios::binary | std::ios_base::out);
+    WriteTga(fs, pixels, width);
+}
+
 }//namespace vd

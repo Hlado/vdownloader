@@ -144,6 +144,9 @@ int main(int argc, char *argv[])
             ++segmentIndex;
             auto format = options->format;
             
+            //For some reason, if Slice(...) throws, main thread hangs until already started decoders finish their work.
+            //Likely it's because some waiting mechanism inside future destructor, but it's complex topic
+            //and is not really worth to dig deep into it. That only delays failure, doesn't introduce any error
             auto future = std::async(
                 ForEachFrame,
                     std::ref(*semaphore),

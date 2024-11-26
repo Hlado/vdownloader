@@ -5,6 +5,7 @@
 #include <args.hxx>
 
 #include <regex>
+#include <thread>
 
 namespace vd
 {
@@ -118,6 +119,12 @@ std::optional<Options> ParseOptions(int argc, const char * const * argv)
         "File names format (s - segment index (1-based), f - frame index (1-based), t - frame timestamp in XsYms format)",
         {'f',"format"},
         "s{s}f{f}({t}).tga");
+    args::ValueFlag<int> threads(
+        parser,
+        "threads",
+        "Number of parallel threads to decode segments simultaneously (=<number_of_cores> by default or when set to 0)",
+        {'t',"threads"},
+        0);
     args::Positional<std::string> source(parser, "source", "Video source (url/file)", args::Options::Required);
     args::PositionalList<std::string> segments(
         parser,
@@ -129,9 +136,29 @@ std::optional<Options> ParseOptions(int argc, const char * const * argv)
     {
         parser.ParseCLI(argc, argv);
 
+        std::uint8_t numThreads;
+        try
+        {
+            numThreads = IntCast<std::uint8_t>(threads.Get());
+            if(numThreads == 0)
+            {
+                numThreads = IntCast<std::uint8_t>(std::thread::hardware_concurrency());
+                //Yes, weird, but hardware_concurrency() may return 0
+                if(numThreads == 0)
+                {
+                    numThreads = 1;
+                }
+            }
+        }
+        catch(...)
+        {
+            throw Error{R"("threads" parameter must be integer in range [0:255])"};
+        }
+
         return Options{.format = ConvertFormat(format.Get()),
                        .videoUrl = source.Get(),
-                       .segments = ParseSegments(segments)};
+                       .segments = ParseSegments(segments),
+                       .numThreads = numThreads };
     }
     catch (args::Help)
     {

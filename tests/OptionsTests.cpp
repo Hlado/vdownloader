@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <thread>
 
 using namespace std::chrono_literals;
 using namespace vd;
@@ -67,6 +68,40 @@ TEST(OptionsTests, CustomFormat)
     //ASSERT_EQ("{{s}custom{1}format{/{2}}", options->format);
     //We use simplified replacement for now
     ASSERT_EQ("{{0}custom{1}format{/{2}}", options->format);
+}
+
+TEST(OptionsTests, Threads)
+{
+    auto argv = std::array{"app_path", "-t" ,"a", "url", "1s500ms-2s300ms:22"};
+    ASSERT_THROW(Parse(argv), args::Error);
+
+    argv[2] = "-1";
+    ASSERT_THROW(Parse(argv), Error);
+
+    argv[2] = "256";
+    ASSERT_THROW(Parse(argv), Error);
+
+    argv[2] = "2";
+    auto options = Parse(argv);
+    ASSERT_TRUE(options);
+    ASSERT_EQ(2, options->numThreads);
+
+    argv[2] = "0";
+    options = Parse(argv);
+    ASSERT_TRUE(options);
+    if(std::thread::hardware_concurrency() != 0)
+    {
+        ASSERT_EQ(std::thread::hardware_concurrency(), options->numThreads);
+    }
+    else
+    {
+        ASSERT_EQ(1, options->numThreads);
+    }
+
+    auto argv2 = std::array{"app_path", "url", "1s500ms-2s300ms:22"};
+    options = Parse(argv);
+    ASSERT_TRUE(options);
+    ASSERT_EQ(std::thread::hardware_concurrency(), options->numThreads);
 }
 
 TEST(OptionsTests, CorrectSegmentFull)

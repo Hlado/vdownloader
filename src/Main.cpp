@@ -7,6 +7,10 @@
 
 #include <libyuv.h>
 
+#include <future>
+#include <limits>
+#include <semaphore>
+
 using namespace std::chrono_literals;
 using namespace vd;
 
@@ -59,36 +63,47 @@ SerialDecoder Slice(const Track &track, std::chrono::nanoseconds from, std::chro
 }
 
 using FrameHandler = std::function<void(const ArgbImage &,std::chrono::nanoseconds,std::size_t)>;
+using Semaphore = std::counting_semaphore<std::numeric_limits<std::ptrdiff_t>::max()>;
 
-void ForEachFrame(Mp4Container &container, Options::Segment &segOpt, FrameHandler callback)
+void ForEachFrame(Semaphore &semaphore, SerialDecoder decoder, Options::Segment segOpt, FrameHandler callback)
 {
-    auto interval = (segOpt.to - segOpt.from) / (segOpt.numFrames + 1ll);
-
-    //== 0 is very extreme case but still possible
-    if(interval <= 0ns)
+    semaphore.acquire();
+    
+    try
     {
-        throw Error{std::format("too many frames ({}) requested in segment", segOpt.numFrames)};
-    }
+        auto interval = (segOpt.to - segOpt.from) / (segOpt.numFrames + 1ll);
 
-    auto decoder = Slice(container.GetTrack(), segOpt.from, segOpt.to);
-    auto frame = decoder.GetNext().value();
-    for(std::int64_t i = 0; i < segOpt.numFrames + 2ll; ++i)
-    {
-        //There will be some inaccuracy due to integer arithmetic, but we use ns, so it's too small to care about
-        std::chrono::nanoseconds timestamp = segOpt.from + i*interval;
-        //It's to ensure that last frame taken is exactly as requested
-        if(i == segOpt.numFrames + 1ll)
+        //== 0 is very extreme case but still possible
+        if(interval <= 0ns)
         {
-            timestamp = segOpt.to;
+            throw Error{std::format("too many frames ({}) requested in segment", segOpt.numFrames)};
         }
 
-        while(decoder.HasMore() && decoder.TimestampNext() <= timestamp)
+        auto frame = decoder.GetNext().value();
+        for(std::int64_t i = 0; i < segOpt.numFrames + 2ll; ++i)
         {
-            frame = decoder.GetNext().value();
-        }
+            //There will be some inaccuracy due to integer arithmetic, but we use ns, so it's too small to care about
+            std::chrono::nanoseconds timestamp = segOpt.from + i*interval;
+            //It's to ensure that last frame taken is exactly as requested
+            if(i == segOpt.numFrames + 1ll)
+            {
+                timestamp = segOpt.to;
+            }
 
-        callback(frame.image, timestamp, i + 1ull);
+            while(decoder.HasMore() && decoder.TimestampNext() <= timestamp)
+            {
+                frame = decoder.GetNext().value();
+            }
+
+            callback(frame.image, timestamp, i + 1ull);
+        }
     }
+    catch(...)
+    {
+        semaphore.release();
+        throw;
+    }
+    semaphore.release();
 }
 
 void SaveFrame(
@@ -110,6 +125,8 @@ void SaveFrame(
 
 int main(int argc, char *argv[])
 {
+    static auto semaphore = std::optional<Semaphore>{};
+
     try
     {
         auto options = ParseOptions(argc, argv);
@@ -118,18 +135,33 @@ int main(int argc, char *argv[])
             return 0;
         }
 
+        semaphore.emplace(options->numThreads);
         Mp4Container container(OpenSource(options->videoUrl));
 
+        auto futures = std::vector<std::future<void>>{};
         for(std::size_t segmentIndex = 0; auto &segment : options->segments)
         {
             ++segmentIndex;
-            ForEachFrame(
-                container,
-                segment,
-                [&options,segmentIndex](auto const &image, auto timestamp, auto index)
-                {
-                    SaveFrame(options->format,segmentIndex,image,timestamp,index);
-                });
+            auto format = options->format;
+            
+            auto future = std::async(
+                ForEachFrame,
+                    std::ref(*semaphore),
+                    Slice(container.GetTrack(), segment.from, segment.to),
+                    segment,
+                    [format,segmentIndex](auto const &image, auto timestamp, auto index)
+                    {
+                        SaveFrame(format, segmentIndex, image, timestamp, index);
+                    });
+
+            futures.push_back(std::move(future));
+        }
+
+        //Not very elegant way to deal with exceptions, but nothing fatal will happen,
+        //only corrupted output files at most
+        for(auto &future : futures)
+        {
+            future.get();
         }
 
         return 0;

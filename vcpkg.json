@@ -8,6 +8,14 @@
       ]
     },
     {
+      "name": "ffmpeg",
+      "default-features": false,
+      "features": [
+        "avcodec",
+        "avformat"
+      ]
+    },
+    {
       "name": "gtest"
     },
     {
@@ -26,6 +34,10 @@
       "version": "0.16.0#0"
     },
     {
+      "name": "ffmpeg",
+      "version": "7.1#1"
+    },
+    {
       "name": "gtest",
       "version": "1.14.0"
     },
@@ -42,5 +54,5 @@
       "version": "1.13.3"
     }
   ],
-  "builtin-baseline": "7aeffc91033ad35cc4e2c152f213a866ec6c11ac"
+  "builtin-baseline": "f523208df4ae467436dc2d2eeab594fed240d552"
 }

@@ -131,6 +131,7 @@ constexpr RetT Sub(bool &overflow, T l, U r)
     return static_cast<RetT>(ret);
 }
 
+
 template<std::unsigned_integral RetT,
          std::unsigned_integral T,
          std::unsigned_integral U>
@@ -145,38 +146,89 @@ constexpr RetT Mul(bool &overflow, T l, U r)
 }
 
 
+
 namespace internal
 {
+
+struct AddFunctor
+{
+    template<std::unsigned_integral RetT,
+             std::unsigned_integral T,
+             std::unsigned_integral U>
+    constexpr RetT operator()(bool &overflow, T l, U r) const;
+};
+
+template<std::unsigned_integral RetT,
+         std::unsigned_integral T,
+         std::unsigned_integral U>
+constexpr RetT AddFunctor::operator()(bool &overflow, T l, U r) const
+{
+    return Add<RetT>(overflow, l, r);
+}
+
+struct SubFunctor
+{
+    template<std::unsigned_integral RetT,
+             std::unsigned_integral T,
+             std::unsigned_integral U>
+    constexpr RetT operator()(bool &overflow, T l, U r) const;
+};
+
+template<std::unsigned_integral RetT,
+         std::unsigned_integral T,
+         std::unsigned_integral U>
+constexpr RetT SubFunctor::operator()(bool &overflow, T l, U r) const
+{
+    return Sub<RetT>(overflow, l, r);
+}
+
+struct MulFunctor
+{
+    template<std::unsigned_integral RetT,
+             std::unsigned_integral T,
+             std::unsigned_integral U>
+    constexpr RetT operator()(bool &overflow, T l, U r) const;
+};
+
+template<std::unsigned_integral RetT,
+         std::unsigned_integral T,
+         std::unsigned_integral U>
+constexpr RetT MulFunctor::operator()(bool &overflow, T l, U r) const
+{
+    return Mul<RetT>(overflow, l, r);
+}
+
+
 
 template<std::unsigned_integral RetT,
          typename ArithmeticOpT,
          std::unsigned_integral T,
          std::unsigned_integral U,
          std::unsigned_integral... Args>
-constexpr RetT NoThrowArithmeticOp(bool &overflow, ArithmeticOpT op, T l, U r, Args...  args)
+constexpr RetT NoThrowArithmeticOp(bool &overflow, T l, U r, Args...  args)
 {
     if constexpr(sizeof...(args))
     {
         bool tmp;
-        auto ret = NoThrowArithmeticOp<RetT, ArithmeticOpT, RetT, Args...>(overflow, op, op(tmp, l, r), args...);
+        auto ret = NoThrowArithmeticOp<RetT, ArithmeticOpT, RetT, Args...>(overflow, ArithmeticOpT{}.operator()<RetT>(tmp, l, r), args...);
         overflow = overflow || tmp;
         return ret;
     }
     else
     {
-        return op(overflow, l, r);
+        return ArithmeticOpT{}.operator()<RetT>(overflow, l, r);
     }
 }
 
 template<std::unsigned_integral RetT,
-         typename NoThrowOpT,
+         typename ArithmeticOpT,
          std::unsigned_integral T,
          std::unsigned_integral U,
          std::unsigned_integral... Args>
-constexpr RetT ThrowArithmeticOp(NoThrowOpT op, T l, U r, Args... args)
+constexpr RetT ThrowArithmeticOp(T l, U r, Args... args)
 {
     bool overflow;
-    auto ret = op(overflow, l, r, args...);
+    auto ret = NoThrowArithmeticOp<RetT,ArithmeticOpT>(overflow, l, r, args...);
     if(overflow)
     {
         throw RangeError{};
@@ -195,8 +247,7 @@ template<std::unsigned_integral T,
          std::unsigned_integral... Args>
 constexpr T Add(bool &overflow, T l, U r, Args... args)
 {
-    T (*op)(bool &, T, U) = Add;
-    return internal::NoThrowArithmeticOp<T>(overflow, op, l, r, args...);
+    return internal::NoThrowArithmeticOp<T, internal::AddFunctor>(overflow, l, r, args...);
 }
 
 template<std::unsigned_integral T,
@@ -204,8 +255,7 @@ template<std::unsigned_integral T,
          std::unsigned_integral... Args>
 constexpr T Add(T l, U r, Args... args)
 {
-    T (*op)(bool &, T, U, Args...) = Add;
-    return internal::ThrowArithmeticOp<T>(op, l, r, args...);
+    return internal::ThrowArithmeticOp<T, internal::AddFunctor>(l, r, args...);
 }
 
 template<std::unsigned_integral T,
@@ -213,8 +263,7 @@ template<std::unsigned_integral T,
          std::unsigned_integral... Args>
 constexpr T Sub(bool &overflow, T l, U r, Args... args)
 {
-    T (*op)(bool &, T, U) = Sub;
-    return internal::NoThrowArithmeticOp<T>(overflow, op, l, r, args...);
+    return internal::NoThrowArithmeticOp<T, internal::SubFunctor>(overflow, l, r, args...);
 }
 
 template<std::unsigned_integral T,
@@ -222,8 +271,7 @@ template<std::unsigned_integral T,
          std::unsigned_integral... Args>
 constexpr T Sub(T l, U r, Args... args)
 {
-    T (*op)(bool &, T, U, Args...) = Sub;
-    return internal::ThrowArithmeticOp<T>(op, l, r, args...);
+    return internal::ThrowArithmeticOp<T, internal::SubFunctor>(l, r, args...);
 }
 
 template<std::unsigned_integral T,
@@ -231,8 +279,7 @@ template<std::unsigned_integral T,
          std::unsigned_integral... Args>
 constexpr T Mul(bool &overflow, T l, U r, Args... args)
 {
-    T (*op)(bool &, T, U) = Mul;
-    return internal::NoThrowArithmeticOp<T>(overflow, op, l, r, args...);
+    return internal::NoThrowArithmeticOp<T, internal::MulFunctor>(overflow, l, r, args...);
 }
 
 template<std::unsigned_integral T,
@@ -240,8 +287,7 @@ template<std::unsigned_integral T,
          std::unsigned_integral... Args>
 constexpr T Mul(T l, U r, Args... args)
 {
-    T (*op)(bool &, T, U, Args...) = Mul;
-    return internal::ThrowArithmeticOp<T>(op, l, r, args...);
+    return internal::ThrowArithmeticOp<T, internal::MulFunctor>(l, r, args...);
 }
 
 template<std::unsigned_integral T,

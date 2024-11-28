@@ -83,7 +83,7 @@ TEST(UtilsTests, Add)
     ASSERT_THROW(Add(65535_u16, 1_u32), RangeError);
     ASSERT_THROW(Add(65535_u16, 65536_u32), RangeError);
 
-    ASSERT_NO_THROW(Add(0xFFFFFFF0_u32, 0x0E_u16, 1_u8));
+    ASSERT_NO_THROW(Add(0xFFFFFFF0_u32, 1_u8, 0x0E_u16));
     ASSERT_THROW(Add(0xFFFFFFF1_u32, 0x0E_u16, 1_u8), RangeError);
 }
 
@@ -100,7 +100,7 @@ TEST(UtilsTests, Sub)
     ASSERT_THROW(Sub(65535_u16, 65536_u32), RangeError);
     ASSERT_THROW(Sub(0_u16, 65536_u32), RangeError);
 
-    ASSERT_NO_THROW(Sub(0xFFFF_u32, 0xFFF0_u16, 0x0F_u8));
+    ASSERT_NO_THROW(Sub(0xFFFF_u32, 0x0F_u8, 0xFFF0_u16));
     ASSERT_THROW(Sub(0xFFFF_u32, 0xFFF0_u16, 0x10_u8), RangeError);
 }
 
@@ -116,7 +116,7 @@ TEST(UtilsTests, Mul)
     ASSERT_THROW(Mul(0x102_u16, 0xFF_u32), RangeError);
     ASSERT_THROW(Mul(0x101_u16, 0xFFFF_u32), RangeError);
 
-    ASSERT_NO_THROW(Mul(0x10001_u32, 0x101_u16, 0xFF_u8));
+    ASSERT_NO_THROW(Mul(0x10001_u32, 0xFF_u8, 0x101_u16));
     ASSERT_THROW(Mul(0x10002_u32, 0x101_u16, 0xFF_u8), RangeError);
 }
 

@@ -10,6 +10,7 @@ add_subdirectory(3rdparty/Bento4)
 find_package(httplib CONFIG REQUIRED)
 find_package(libyuv CONFIG REQUIRED)
 find_package(Poco REQUIRED COMPONENTS Foundation)
+find_package(FFMPEG REQUIRED)
 
 find_package(PkgConfig)
 pkg_check_modules(openh264 REQUIRED IMPORTED_TARGET openh264)

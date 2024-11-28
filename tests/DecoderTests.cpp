@@ -640,7 +640,7 @@ public:
 
 TEST(SerialDecoderTests, ConstructionEmpty)
 {
-    ASSERT_THROW(SerialDecoder{{}}, ArgumentError);
+    ASSERT_THROW(SerialDecoderBase<MockDecoderWrapper>{{}}, ArgumentError);
 }
 
 TEST(SerialDecoderTests, DecodingTwoSegments)

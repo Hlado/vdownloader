@@ -4,6 +4,7 @@
 #include "Decoder.h"
 #include "Ap4ByteStream.h"
 #include "Ap4Helpers.h"
+#include "LibavH264Decoder.h"
 #include "Mp4Utils.h"
 #include "OpenH264Decoder.h"
 #include "Sources.h"
@@ -85,7 +86,8 @@ private:
     void DiscardBuffer();
 };
 
-using Decoder = DecoderBase<OpenH264Decoder>;
+using DecoderOpenH264 = DecoderBase<OpenH264Decoder>;
+using DecoderLibav = DecoderBase<LibavH264Decoder>;
 
 namespace internal
 {
@@ -401,7 +403,8 @@ private:
     void EnsureThereIsMoreOrEnd() const;
 };
 
-using SerialDecoder = SerialDecoderBase<Decoder>;
+using SerialDecoderOpenH264 = SerialDecoderBase<DecoderOpenH264>;
+using SerialDecoderLibav = SerialDecoderBase<DecoderLibav>;
 
 template <DecoderConcept DecoderImplT>
 SerialDecoderBase<DecoderImplT>::SerialDecoderBase(std::vector<DecoderImplT> &&decoders)

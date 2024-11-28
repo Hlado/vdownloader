@@ -1,6 +1,8 @@
 #ifndef VDOWNLOADER_VD_OPENH264_DECODER_H_
 #define VDOWNLOADER_VD_OPENH264_DECODER_H_
 
+#include "DecodingUtils.h"
+
 #include <wels/codec_api.h>
 
 #include <cstddef>
@@ -11,14 +13,6 @@
 
 namespace vd
 {
-
-struct ArgbImage final
-{
-    //little-endian
-    std::vector<std::byte> data;
-    std::size_t width;
-    std::size_t height;
-};
 
 class OpenH264Decoder final
 {

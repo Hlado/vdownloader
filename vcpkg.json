@@ -11,8 +11,7 @@
       "name": "ffmpeg",
       "default-features": false,
       "features": [
-        "avcodec",
-        "avformat"
+        "avcodec"
       ]
     },
     {

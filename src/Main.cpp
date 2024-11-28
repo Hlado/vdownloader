@@ -17,6 +17,11 @@ using namespace vd;
 namespace
 {
 
+using Decoder = DecoderLibav;
+using SerialDecoder = SerialDecoderBase<Decoder>;
+
+
+
 const std::size_t gChunkSize = 2000000; //~2mb
 const std::size_t gNumCachedChunks = 2;
 

@@ -64,6 +64,7 @@ private:
     std::size_t mContentLength;
     bool mIsRangeSupported;
 
+    httplib::Headers EstablishConnection(std::string url);
     void Cache();
     //Returns reference to result member
     const httplib::Response &AssertRequestSuccessful(

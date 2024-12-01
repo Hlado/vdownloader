@@ -56,15 +56,8 @@ using namespace internal;
 
 
 HttpSource::HttpSource(const std::string &url)
-    : mHttpClient{std::make_unique<Client>(ExtractAddress(url))},
-      mRequestStr{Poco::URI{url}.getPathAndQuery()}
 {
-    mHttpClient->set_keep_alive(true);
-
-    auto requestRes = mHttpClient->Head(mRequestStr);
-    const auto &response = AssertRequestSuccessful(requestRes);
-
-    auto headers = response.headers;
+    auto headers = EstablishConnection(url);
     auto lookupRes = headers.equal_range("Content-Length");
     if(lookupRes.first == headers.end())
     {
@@ -126,6 +119,30 @@ void HttpSource::Read(std::size_t pos, std::span<std::byte> buf)
         
         std::memcpy(buf.data(), std::next(mCache.data(), from), buf.size_bytes());
         return;
+    }
+}
+
+httplib::Headers HttpSource::EstablishConnection(std::string url)
+{
+    //Not good if infinite redirection is possible
+    while(true)
+    {
+        mRequestStr = Poco::URI{url}.getPathAndQuery();
+        mHttpClient = std::make_unique<Client>(ExtractAddress(url));
+        mHttpClient->set_keep_alive(true);
+        mHttpClient->set_follow_location(true);
+        auto requestRes = mHttpClient->Head(mRequestStr);
+        const auto &response = AssertRequestSuccessful(requestRes);
+    
+        //Must be filled only when redirection happened
+        if(!response.location.empty())
+        {
+            url = response.location;
+        }
+        else
+        {
+            return response.headers;
+        }
     }
 }
 

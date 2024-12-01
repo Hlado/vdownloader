@@ -22,7 +22,7 @@ using SerialDecoder = SerialDecoderBase<Decoder>;
 
 
 
-const std::size_t gChunkSize = 2000000; //~2mb
+const std::size_t gChunkSize = 1 << 20; //1mb
 const std::size_t gNumCachedChunks = 2;
 
 

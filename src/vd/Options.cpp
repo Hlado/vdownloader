@@ -119,6 +119,12 @@ std::optional<Options> ParseOptions(int argc, const char * const * argv)
         "File names format (s - segment index (1-based), f - frame index (1-based), t - frame timestamp in XsYms format)",
         {'f',"format"},
         "s{s}f{f}({t}).tga");
+    args::ValueFlag<std::int64_t> chunk(
+        parser,
+        "chunk",
+        "Size in bytes of cached chunks when downloading video via http (512KB by default or when set to 0)",
+        {'c',"chunk"},
+        1 << 19);
     args::ValueFlag<int> threads(
         parser,
         "threads",
@@ -155,10 +161,25 @@ std::optional<Options> ParseOptions(int argc, const char * const * argv)
             throw Error{R"("threads" parameter must be integer in range [0:255])"};
         }
 
+        std::size_t chunkSize;
+        try
+        {
+            chunkSize = IntCast<std::size_t>(chunk.Get());
+            if(chunkSize == 0)
+            {
+                chunkSize = IntCast<std::size_t>(chunk.GetDefault());
+            }
+        }
+        catch(...)
+        {
+            throw Error{R"("chunk" parameter must be positive and in range of 64-bit signed integer values)"};
+        }
+
         return Options{.format = ConvertFormat(format.Get()),
                        .videoUrl = source.Get(),
                        .segments = ParseSegments(segments),
-                       .numThreads = numThreads };
+                       .numThreads = numThreads,
+                       .chunkSize = chunkSize };
     }
     catch (args::Help)
     {

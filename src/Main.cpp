@@ -22,21 +22,21 @@ using SerialDecoder = SerialDecoderBase<Decoder>;
 
 
 
-const std::size_t gChunkSize = 1 << 20; //1mb
 const std::size_t gNumCachedChunks = 2;
 
 
 
-std::shared_ptr<AP4_ByteStream> OpenSource(const std::string &url)
+std::shared_ptr<AP4_ByteStream> OpenSource(const std::string &url, std::size_t chunkSize)
 {
     std::shared_ptr<AP4_ByteStream> res;
 
     try
     {
-        res = std::make_shared<Ap4HttpByteStream>(CachedSource{HttpSource{url}, gNumCachedChunks, gChunkSize});
+        res = std::make_shared<Ap4HttpByteStream>(CachedSource{HttpSource{url}, gNumCachedChunks, chunkSize});
     }
-    catch(...)
+    catch(const std::exception &e)
     {
+        Discard(e);
         auto err = AP4_FileByteStream::Create(url.c_str(), AP4_FileByteStream::STREAM_MODE_READ, res);
         if(AP4_FAILED(err))
         {
@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
         }
 
         semaphore.emplace(options->numThreads);
-        Mp4Container container(OpenSource(options->videoUrl));
+        Mp4Container container(OpenSource(options->videoUrl, options->chunkSize));
 
         auto futures = std::vector<std::future<void>>{};
         for(std::size_t segmentIndex = 0; auto &segment : options->segments)

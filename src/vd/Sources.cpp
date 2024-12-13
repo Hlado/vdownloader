@@ -26,7 +26,8 @@ std::string ExtractAddress(std::string_view url)
         throw ArgumentError{std::format(R"("{}" is not an HTTP(S) resource address)", url)};
     }
 
-    return parsed.getScheme() + "://" + parsed.getHost();
+    auto portSuffix = parsed.getPort() == 0 ? "" : ":" + std::to_string(parsed.getPort());
+    return parsed.getScheme() + "://" + parsed.getHost() + portSuffix;
 }
 
 } //unnamed namespace

@@ -21,9 +21,6 @@
       "name": "libyuv"
     },
     {
-      "name": "openh264"
-    },
-    {
       "name": "poco"
     }
   ],
@@ -43,10 +40,6 @@
     {
       "name": "libyuv",
       "version": "1857#1"
-    },
-    {
-      "name": "openh264",
-      "version": "2.4.1"
     },
     {
       "name": "poco",

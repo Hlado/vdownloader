@@ -544,6 +544,11 @@ void Discard(const T &)
 
 }
 
+
+
+//Returns 1 if failed to get actual number
+unsigned int GetNumCores() noexcept;
+
 }//namespace vd
 
 #endif //VDOWNLOADER_VD_UTILS_H_

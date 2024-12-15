@@ -22,6 +22,7 @@ struct Options final
     std::string videoUrl;
     std::vector<Segment> segments;
     std::uint8_t numThreads;
+    std::uint8_t numDecoderThreads;
     std::size_t chunkSize;
 };
 

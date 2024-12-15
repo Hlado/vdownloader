@@ -1,7 +1,6 @@
 #include <vd/Ap4ByteStream.h>  
 #include <vd/Mp4Container.h>
 #include <vd/Decoder.h>
-#include <vd/OpenH264Decoder.h>
 #include <vd/Options.h>
 #include <vd/Tga.h>
 
@@ -23,6 +22,7 @@ using SerialDecoder = SerialDecoderBase<Decoder>;
 
 
 const std::size_t gNumCachedChunks = 2;
+const int gDefaultNumDecoderThreads = 2;
 
 
 
@@ -57,42 +57,79 @@ std::string ToString(const std::chrono::duration<RepT, PeriodT> &val)
     return std::format("{}s{}ms", s.count(), ms.count());
 }
 
-SerialDecoder Slice(const Track &track, std::chrono::nanoseconds from, std::chrono::nanoseconds to)
+SerialDecoder MakeDecoder(std::vector<vd::Segment> segments, const vd::DecodingConfig &config, std::uint8_t numThreads)
 {
     auto decoders = std::vector<Decoder>{};
-    for(auto &segment : track.Slice(from, to))
+    for(auto &segment : segments)
     {
-        decoders.emplace_back(track.GetDecodingConfig(), std::move(segment));
+        decoders.emplace_back(config, std::move(segment), numThreads);
     }
     return SerialDecoder(std::move(decoders));
 }
 
+int PickNumDecoderThreads(std::uint8_t base, const std::atomic<int> &numActiveThreads) noexcept
+{
+    if(base != 0)
+    {
+        return IntCast<int>(base);
+    }
+
+    auto numAvailableThreads = IntCast<int>(GetNumCores()) - numActiveThreads.load();
+    if(numAvailableThreads <= 0)
+    {
+        return gDefaultNumDecoderThreads;
+    }
+    else
+    {
+        return numAvailableThreads + 1;
+    }
+}
+
+
+
 using FrameHandler = std::function<void(const ArgbImage &,std::chrono::nanoseconds,std::size_t)>;
 using Semaphore = std::counting_semaphore<std::numeric_limits<std::ptrdiff_t>::max()>;
 
-void ForEachFrame(Semaphore &semaphore, SerialDecoder decoder, Options::Segment segOpt, FrameHandler callback)
+struct ThreadContext final
 {
-    semaphore.acquire();
+    std::vector<vd::Segment> videoSegments;
+    vd::DecodingConfig config;
+    Semaphore &semaphore;
+    std::atomic<int> &numActiveThreads;
+    Options::Segment range;
+    std::uint8_t numDecoderThreads;
+};
+
+void ForEachFrame(ThreadContext ctx, FrameHandler callback)
+{
+    ctx.semaphore.acquire();
     
+    auto numDecoderThreads = PickNumDecoderThreads(ctx.numDecoderThreads, ctx.numActiveThreads);
+    //There's a problem - in theory multiple decoding threads may perform these calculations simultaneously
+    //(although it's practically impossible), so in case of adaptive number of threads there will be some inaccuracy,
+    //but even then it's not a big mistake, so for simplicity we ignore it
+    ctx.numActiveThreads.fetch_add(numDecoderThreads);
+
     try
     {
-        auto interval = (segOpt.to - segOpt.from) / (segOpt.numFrames + 1ll);
+        auto decoder = MakeDecoder(std::move(ctx.videoSegments), ctx.config, IntCast<std::uint8_t>(numDecoderThreads));
+        auto interval = (ctx.range.to - ctx.range.from) / (ctx.range.numFrames + 1ll);
 
         //== 0 is very extreme case but still possible
         if(interval <= 0ns)
         {
-            throw Error{std::format("too many frames ({}) requested in segment", segOpt.numFrames)};
+            throw Error{std::format("too many frames ({}) requested in segment", ctx.range.numFrames)};
         }
 
         auto frame = decoder.GetNext().value();
-        for(std::int64_t i = 0; i < segOpt.numFrames + 2ll; ++i)
+        for(std::int64_t i = 0; i < ctx.range.numFrames + 2ll; ++i)
         {
             //There will be some inaccuracy due to integer arithmetic, but we use ns, so it's too small to care about
-            std::chrono::nanoseconds timestamp = segOpt.from + i*interval;
+            std::chrono::nanoseconds timestamp = ctx.range.from + i*interval;
             //It's to ensure that last frame taken is exactly as requested
-            if(i == segOpt.numFrames + 1ll)
+            if(i == ctx.range.numFrames + 1ll)
             {
-                timestamp = segOpt.to;
+                timestamp = ctx.range.to;
             }
 
             while(decoder.HasMore() && decoder.TimestampNext() <= timestamp)
@@ -105,10 +142,12 @@ void ForEachFrame(Semaphore &semaphore, SerialDecoder decoder, Options::Segment 
     }
     catch(...)
     {
-        semaphore.release();
+        ctx.numActiveThreads.fetch_sub(numDecoderThreads);
+        ctx.semaphore.release();
         throw;
     }
-    semaphore.release();
+    ctx.numActiveThreads.fetch_sub(numDecoderThreads);
+    ctx.semaphore.release();
 }
 
 void SaveFrame(
@@ -131,6 +170,7 @@ void SaveFrame(
 int main(int argc, char *argv[])
 {
     static auto semaphore = std::optional<Semaphore>{};
+    static auto numActiveThreads = std::atomic<int>{0};
 
     try
     {
@@ -149,14 +189,20 @@ int main(int argc, char *argv[])
             ++segmentIndex;
             auto format = options->format;
             
+
             //For some reason, if Slice(...) throws, main thread hangs until already started decoders finish their work.
             //Likely it's because some waiting mechanism inside future destructor, but it's complex topic
             //and is not really worth to dig deep into it. That only delays failure, doesn't introduce any error
             auto future = std::async(
                 ForEachFrame,
-                    std::ref(*semaphore),
-                    Slice(container.GetTrack(), segment.from, segment.to),
-                    segment,
+                    ThreadContext{
+                        .videoSegments = container.GetTrack().Slice(segment.from, segment.to),
+                        .config = container.GetTrack().GetDecodingConfig(),
+                        .semaphore = *semaphore,
+                        .numActiveThreads = numActiveThreads,
+                        .range = segment,
+                        .numDecoderThreads = options->numDecoderThreads
+                    },
                     [format,segmentIndex](auto const &image, auto timestamp, auto index)
                     {
                         SaveFrame(format, segmentIndex, image, timestamp, index);

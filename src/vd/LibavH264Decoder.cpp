@@ -37,7 +37,7 @@ void AssertImageFormat(const AVFrame &frame)
 
 
 
-LibavH264Decoder::LibavH264Decoder()
+LibavH264Decoder::LibavH264Decoder(std::uint8_t numThreads)
     : mUnit{0_b, 0_b, 0_b, 1_b}
 {
     if(mAvCodec = avcodec_find_decoder(AV_CODEC_ID_H264); !mAvCodec)
@@ -50,6 +50,12 @@ LibavH264Decoder::LibavH264Decoder()
         throw Error{"failed to create H264 codec context"};
     }
 
+    if(mAvCodec->capabilities & AV_CODEC_CAP_FRAME_THREADS)
+    {
+        //It's unclear what happens if numThreads is 0, but we assume - nothing wrong
+        mCodecCtx->thread_count = numThreads;
+        mCodecCtx->thread_type = FF_THREAD_FRAME;
+    }
     if(auto err = avcodec_open2(mCodecCtx.get(), mAvCodec, nullptr); err != 0)
     {
         throw LibraryCallError{"avcodec_open2", err};

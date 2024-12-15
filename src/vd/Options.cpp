@@ -113,22 +113,28 @@ std::optional<Options> ParseOptions(int argc, const char * const * argv)
 {
     args::ArgumentParser parser("Video frame extractor program");
     args::HelpFlag help(parser, "help", "Show help", {'h', "help"});
-    args::ValueFlag<std::string> format(
-        parser,
-        "format",
-        "File names format (s - segment index (1-based), f - frame index (1-based), t - frame timestamp in XsYms format)",
-        {'f',"format"},
-        "s{s}f{f}({t}).tga");
     args::ValueFlag<std::int64_t> chunk(
         parser,
         "chunk",
         "Size in bytes of cached chunks when downloading video via http (512KB by default or when set to 0)",
         {'c',"chunk"},
         1 << 19);
+    args::ValueFlag<int> decoderThreads(
+        parser,
+        "decoder-threads",
+        "Number of decoding threads per segment (adaptive by default or when set to 0)",
+        {'d',"decoder-threads"},
+        0);
+    args::ValueFlag<std::string> format(
+        parser,
+        "format",
+        "File names format (s - segment index (1-based), f - frame index (1-based), t - frame timestamp in XsYms format)",
+        {'f',"format"},
+        "s{s}f{f}({t}).tga");
     args::ValueFlag<int> threads(
         parser,
         "threads",
-        "Number of parallel threads to decode segments simultaneously (=<number_of_cores> by default or when set to 0)",
+        "Number of simultaneously decoded segments (=<number_of_cores> by default or when set to 0)",
         {'t',"threads"},
         0);
     args::Positional<std::string> source(parser, "source", "Video source (url/file)", args::Options::Required);
@@ -148,17 +154,22 @@ std::optional<Options> ParseOptions(int argc, const char * const * argv)
             numThreads = IntCast<std::uint8_t>(threads.Get());
             if(numThreads == 0)
             {
-                numThreads = IntCast<std::uint8_t>(std::thread::hardware_concurrency());
-                //Yes, weird, but hardware_concurrency() may return 0
-                if(numThreads == 0)
-                {
-                    numThreads = 1;
-                }
+                numThreads = IntCast<std::uint8_t>(GetNumCores());
             }
         }
         catch(...)
         {
             throw Error{R"("threads" parameter must be integer in range [0:255])"};
+        }
+
+        std::uint8_t numDecoderThreads;
+        try
+        {
+            numDecoderThreads = IntCast<std::uint8_t>(decoderThreads.Get());
+        }
+        catch(...)
+        {
+            throw Error{R"("decoder-threads" parameter must be integer in range [0:255])"};
         }
 
         std::size_t chunkSize;

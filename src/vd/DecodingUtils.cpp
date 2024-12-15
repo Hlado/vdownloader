@@ -12,7 +12,7 @@ ArgbImage ToArgb(const I420Image &img)
     //big-endian hardware is a rare beast, so just don't care about it for now
     static_assert(std::endian::native == std::endian::little);
 
-    auto ret = ArgbImage{.data = std::vector<std::byte>(Mul<std::size_t>(img.width, img.height, 4u)),
+    auto ret = ArgbImage{.data = std::vector<std::byte>(Mul<std::size_t>(img.width, img.height, 4u)), //TODO huge performance penalty due to zero initialization
                          .width = img.width,
                          .height = img.height};
 

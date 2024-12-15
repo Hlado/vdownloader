@@ -6,7 +6,6 @@
 #include "Ap4Helpers.h"
 #include "LibavH264Decoder.h"
 #include "Mp4Utils.h"
-#include "OpenH264Decoder.h"
 #include "Sources.h"
 #include "Track.h"
 #include "Utils.h"
@@ -86,7 +85,6 @@ private:
     void DiscardBuffer();
 };
 
-using DecoderOpenH264 = DecoderBase<OpenH264Decoder>;
 using DecoderLibav = DecoderBase<LibavH264Decoder>;
 
 namespace internal
@@ -301,8 +299,6 @@ std::vector<std::chrono::nanoseconds>
 template <H264DecoderConcept DecoderImplT>
 void DecoderBase<DecoderImplT>::PrepareNext()
 {
-    static_assert(std::is_nothrow_move_assignable_v<SBufferInfo> &&
-                  std::is_nothrow_move_constructible_v<SBufferInfo>);
     static_assert(std::is_nothrow_move_assignable_v<std::span<const std::byte>>);
 
     using namespace internal;
@@ -403,7 +399,6 @@ private:
     void EnsureThereIsMoreOrEnd() const;
 };
 
-using SerialDecoderOpenH264 = SerialDecoderBase<DecoderOpenH264>;
 using SerialDecoderLibav = SerialDecoderBase<DecoderLibav>;
 
 template <DecoderConcept DecoderImplT>

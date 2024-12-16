@@ -1,5 +1,6 @@
 import pathlib
 import subprocess
+import urllib.parse
 
 def vdownloader_command(path, url, options = []):
     return \
@@ -10,8 +11,13 @@ def vdownloader_command(path, url, options = []):
 def path_to_script(name):
     return pathlib.Path(__file__).parent.resolve().joinpath(name)
     
-def yt_video_file_url(yt_link, format):
-    return subprocess.check_output(["yt-dlp", "--quiet", "-f", f"{format}", "--get-url", f"{yt_link}"], text = True).strip()
+def video_file_url(link, format):
+    components = urllib.parse.urlparse(link)
+    if components.hostname != None and \
+           (components.hostname.casefold() == "youtube.com" or \
+            components.hostname.casefold() == "www.youtube.com"):
+        return subprocess.check_output(["yt-dlp", "--quiet", "-f", f"{format}", "--get-url", f"{link}"], text = True).strip()
+    return link
     
 def run_benchmark(commands, times):
     rmScript = path_to_script("rm_content.py")

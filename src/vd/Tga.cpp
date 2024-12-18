@@ -2,6 +2,8 @@
 #include "Errors.h"
 #include "Utils.h"
 
+#include <format>
+
 namespace vd
 {
 
@@ -232,7 +234,14 @@ void WriteTga(std::ostream &stream, const std::vector<std::byte> &pixels, std::s
 
 void WriteTga(const std::filesystem::path &path, const std::vector<std::byte> &pixels, std::size_t width)
 {
-    std::ofstream fs(path, std::ios::binary | std::ios_base::out);
+    auto absolute = std::filesystem::absolute(path);
+    std::filesystem::create_directories(absolute.parent_path());
+    std::ofstream fs(absolute, std::ios::binary | std::ios_base::out);
+    if(!fs)
+    {
+        throw Error{std::format(R"(failed to open file for writing image "{}")", absolute.string())};
+    }
+
     WriteTga(fs, pixels, width);
 }
 

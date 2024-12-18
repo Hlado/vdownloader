@@ -125,12 +125,13 @@ std::optional<Options> ParseOptions(int argc, const char * const * argv)
         "Number of decoding threads per segment (adaptive by default or when set to 0)",
         {'d',"decoder-threads"},
         0);
+    static auto defaultFormat = "s{s}f{f}({t}).tga";
     args::ValueFlag<std::string> format(
         parser,
         "format",
-        "File names format (s - segment index (1-based), f - frame index (1-based), t - frame timestamp in XsYms format)",
+        std::format(R"(File names format ("{}" by default: s - segment index (1-based), f - frame index (1-based), t - frame timestamp in XsYms format))", defaultFormat),
         {'f',"format"},
-        "s{s}f{f}({t}).tga");
+        defaultFormat);
     args::ValueFlag<int> threads(
         parser,
         "threads",

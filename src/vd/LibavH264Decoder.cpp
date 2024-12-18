@@ -37,8 +37,32 @@ void AssertImageFormat(const AVFrame &frame)
 
 
 
+LibavH264Decoder::DecodedImage::DecodedImage(FramePointer &&frame, std::function<void(FramePointer &&)> backToPool)
+    : frame{std::move(frame)},
+      backToPool{backToPool}
+{
+
+}
+
+LibavH264Decoder::DecodedImage::~DecodedImage()
+{
+    try
+    {
+        backToPool(std::move(frame));
+    }
+    catch(...) {}
+}
+
+ArgbImage LibavH264Decoder::DecodedImage::Image() const
+{
+    return ToArgb(ToI420Image(*frame));
+}
+
+
+
 LibavH264Decoder::LibavH264Decoder(std::uint8_t numThreads)
-    : mUnit{0_b, 0_b, 0_b, 1_b}
+    : mUnit{0_b, 0_b, 0_b, 1_b},
+      mFramesPool{std::make_shared<std::vector<FramePointer>>()}
 {
     if(mAvCodec = avcodec_find_decoder(AV_CODEC_ID_H264); !mAvCodec)
     {
@@ -66,18 +90,14 @@ LibavH264Decoder::LibavH264Decoder(std::uint8_t numThreads)
         throw Error{"failed to create codec parser context"};
     }
 
-    if(mFrame.reset(av_frame_alloc()); !mFrame)
-    {
-        throw Error{"failed to allocate frame"};
-    }
-
     if(mPacket.reset(av_packet_alloc()); !mPacket)
     {
         throw Error{"failed to allocate packet"};
     }
 }
 
-std::optional<ArgbImage> LibavH264Decoder::Decode(std::span<const std::byte> nalUnit)
+std::optional<LibavH264Decoder::DecodedImage>
+    LibavH264Decoder::Decode(std::span<const std::byte> nalUnit)
 {
     //practically impossible, but...
     if(WouldOverflowAdd<std::size_t>(nalUnit.size_bytes(), 4u, (std::size_t)AV_INPUT_BUFFER_PADDING_SIZE))
@@ -102,7 +122,7 @@ std::optional<ArgbImage> LibavH264Decoder::Decode(std::span<const std::byte> nal
 //Ok, currently there's a problem, we need flush decoder to retrieve any queued frames, but it means that we close stream and
 //can't decode more frames (unlike OpenH264). Actually, under normal circumstances higher level decoder won't try to decode
 //anything after retrieval start, that's correct behavior for now but it may change eventually
-std::optional<ArgbImage> LibavH264Decoder::Retrieve()
+std::optional<LibavH264Decoder::DecodedImage> LibavH264Decoder::Retrieve()
 {
     const std::uint8_t *start = nullptr;
     auto size = int{0};
@@ -155,7 +175,8 @@ void LibavH264Decoder::ReceiveFrames()
     auto ret = int{0};
     while(ret == 0)
     {
-        ret = avcodec_receive_frame(mCodecCtx.get(), mFrame.get());
+        auto frame = FromPool();
+        ret = avcodec_receive_frame(mCodecCtx.get(), frame.get());
 
         if(ret == AVERROR_EOF || ret == AVERROR(EAGAIN))
         {
@@ -166,23 +187,55 @@ void LibavH264Decoder::ReceiveFrames()
             throw LibraryCallError{"avcodec_receive_frame", ret};
         }
         
-        AssertImageFormat(*mFrame);
-        mFrames.push_back(ToArgb(ToI420Image(*mFrame)));
+        AssertImageFormat(*frame);
+        mReadyFrames.push_back(std::move(frame));
     }
 }
 
-std::optional<ArgbImage> LibavH264Decoder::ReturnFrame()
+std::optional<LibavH264Decoder::DecodedImage>
+    LibavH264Decoder::ReturnFrame()
 {
-    if(mFrames.empty())
+    if(mReadyFrames.empty())
     {
         return std::nullopt;
     }
-    else
+
+    auto frame = std::move(mReadyFrames.front());
+    mReadyFrames.pop_front();
+
+    std::weak_ptr<std::vector<FramePointer>> pool;
+    DecodedImage res{
+        std::move(frame),
+        [pool](FramePointer &&frame)
+            {
+                if(pool.expired())
+                {
+                    return;
+                }
+                
+                pool.lock()->push_back(std::move(frame));
+            }
+        };
+
+    return res;
+}
+
+LibavH264Decoder::FramePointer LibavH264Decoder::FromPool()
+{
+    if(!mFramesPool->empty())
     {
-        auto res = std::move(mFrames.front());
-        mFrames.pop_front();
+        auto res = std::move(mFramesPool->back());
+        mFramesPool->pop_back();
         return res;
     }
+
+    auto res = FramePointer{av_frame_alloc()};
+    if(!res)
+    {
+        throw Error{"failed to allocate frame"};
+    }
+
+    return res;
 }
 
 void LibavH264Decoder::CodecContextDeleter::operator()(AVCodecContext *p) const

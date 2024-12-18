@@ -3,8 +3,18 @@
 
 #include <libyuv.h>
 
+#include <limits>
+
 namespace vd
 {
+
+ArgbImage ArgbImage::SentinelValue()
+{
+    return ArgbImage{ .width = std::numeric_limits<std::size_t>::max(),
+                      .height = std::numeric_limits<std::size_t>::max() };
+}
+
+
 
 ArgbImage ToArgb(const I420Image &img)
 {

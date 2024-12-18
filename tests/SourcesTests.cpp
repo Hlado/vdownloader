@@ -235,7 +235,6 @@ struct MemoryViewSourceWrapper
     }
 };
 
-
 struct ChunkedSourceWrapper
 {
     CachedSource<MemoryViewSource> impl{gDefaultSource};

@@ -165,6 +165,16 @@ TEST(UtilsTests, MakeArray)
     }
 }
 
+TEST(UtilsTests, MakeVector)
+{
+    auto vec = MakeVector({3u, 2u, 1u});
+    ASSERT_TRUE((std::is_same_v<std::vector<unsigned int>, decltype(vec)>));
+    ASSERT_EQ(3, vec.size());
+    ASSERT_EQ(3, vec[0]);
+    ASSERT_EQ(2, vec[1]);
+    ASSERT_EQ(1, vec[2]);
+}
+
 TEST(UtilsTests, Defer)
 {
     auto x = 12345;

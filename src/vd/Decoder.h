@@ -30,11 +30,19 @@ struct Frame final
 
 
 template <class T>
-concept H264DecoderConcept =
-    requires(T v, std::size_t pos, std::span<const std::byte> nalUnit)
+concept DecodedImageConcept =
+    requires(const T cv)
 {
-    { v.Decode(nalUnit) } -> std::same_as<std::optional<ArgbImage>>;
-    { v.Retrieve() } -> std::same_as<std::optional<ArgbImage>>;
+    { cv.Image() } -> std::same_as<ArgbImage>;
+};
+
+template <class T>
+concept H264DecoderConcept =
+    requires(T v, std::span<const std::byte> nalUnit)
+{
+    DecodedImageConcept<typename T::DecodedImage>;
+    { []<DecodedImageConcept T>(std::optional<T> ret) {} (v.Decode(nalUnit)) };
+    { []<DecodedImageConcept T>(std::optional<T> ret) {} (v.Retrieve()) };
 };
 
 
@@ -57,7 +65,6 @@ public:
     //In ideal case once GetNext returns nothing, TimestampNext will throw from that moment, but
     //it's not impossible that TimestampNext may start throwing earlier or return value when frames stream is ended
     std::chrono::nanoseconds TimestampNext() const;
-    std::chrono::nanoseconds TimestampLast() const;
     bool HasMore() const noexcept;
 
     //Those functions are written as exception safe as possible, but it's impossible
@@ -65,13 +72,18 @@ public:
     //to throw away whole object when exception occurs, although skipping problematic frame may work
     std::optional<Frame> GetNext();
     void SkipNext();
-
+    //Sets up decoder that subsequent call to GetNext() will return frame to be displayed at "to" moment.
+    //Doesn't perform range check, so it's possible to request skipping to moment far beyond end,
+    //in that case last frame will be returned on subsequent call to GetNext(), although it's illegal
+    //to request skipping to already passed moment, so exception will be thrown in that case
+    void SkipTo(std::chrono::nanoseconds to);
+    
 private:
     DecoderImplT mDecoder;
     DecodingConfig mConfig;
     Segment mSegment;
     std::size_t mPos;
-    std::optional<ArgbImage> mPendingBuffer;
+    std::optional<typename DecoderImplT::DecodedImage> mPendingBuffer;
     std::vector<std::chrono::nanoseconds> mTimestamps;
     std::size_t mNumFramesProcessed{0};
 
@@ -79,6 +91,8 @@ private:
         ParseTimestamps(AP4_TrunAtom &trunAtom, AP4_TfhdAtom &tfhdAtom);
     std::vector<std::chrono::nanoseconds>
         CalculateTimestamps(AP4_TrunAtom &trunAtom, AP4_TfhdAtom &tfhdAtom);
+    std::chrono::nanoseconds TimestampNext(std::size_t lookahead) const;
+    std::size_t NumFramesLeft() const;
     //Sets mPendingBuffer (possibly to empty state if no more frames available) or throws.
     void PrepareNext();
     std::optional<Frame> ReleaseBuffer();
@@ -189,42 +203,37 @@ void DecoderBase<DecoderImplT>::SkipNext()
 }
 
 template <H264DecoderConcept DecoderImplT>
-std::chrono::nanoseconds DecoderBase<DecoderImplT>::TimestampNext() const
+void DecoderBase<DecoderImplT>::SkipTo(std::chrono::nanoseconds to)
 {
-    if(mTimestamps.size() == 0)
-    {
-        throw Error{"no frames found"};
-    }
-    if(mNumFramesProcessed >= mTimestamps.size())
+    if(!HasMore())
     {
         throw RangeError{"no more frames"};
     }
 
-    return mTimestamps[mNumFramesProcessed] + mSegment.offset;
+    if(to < TimestampNext())
+    {
+        throw RangeError{std::format("skipping to moment in the past ({}ns) requested", to.count())};
+    }
+
+    while(NumFramesLeft() > 1 && to >= TimestampNext(1))
+    {
+        SkipNext();
+    }
 }
 
 template <H264DecoderConcept DecoderImplT>
-std::chrono::nanoseconds DecoderBase<DecoderImplT>::TimestampLast() const
+std::chrono::nanoseconds DecoderBase<DecoderImplT>::TimestampNext() const
 {
-    if(mTimestamps.size() == 0)
-    {
-        throw Error{"no frames found"};
-    }
-    if(mNumFramesProcessed < 1)
-    {
-        throw RangeError{"no frames decoded yet"};
-    }
-    if(mNumFramesProcessed - 1 >= mTimestamps.size())
-    {
-        throw RangeError{"no more frames"};
-    }
-
-    return mTimestamps[mNumFramesProcessed - 1] + mSegment.offset;
+    return TimestampNext(0);
 }
 
 template <H264DecoderConcept DecoderImplT>
 bool DecoderBase<DecoderImplT>::HasMore() const noexcept
 {
+    //This leads to exception if there is mismatch between container and data stream,
+    //so we need to check another way
+    //return NumFramesLeft() > 0;
+
     return mNumFramesProcessed < mTimestamps.size();
 }
 
@@ -296,6 +305,29 @@ std::vector<std::chrono::nanoseconds>
 }
 
 template <H264DecoderConcept DecoderImplT>
+std::chrono::nanoseconds DecoderBase<DecoderImplT>::TimestampNext(std::size_t lookahead) const
+{
+    if(mTimestamps.size() == 0)
+    {
+        throw Error{"no frames found"};
+    }
+
+    auto ind = Add(mNumFramesProcessed, lookahead);    
+    if(ind >= mTimestamps.size())
+    {
+        throw RangeError{"no more frames"};
+    }
+
+    return mTimestamps[ind] + mSegment.offset;
+}
+ 
+template <H264DecoderConcept DecoderImplT>
+std::size_t DecoderBase<DecoderImplT>::NumFramesLeft() const
+{
+    return Sub(mTimestamps.size(), mNumFramesProcessed);
+}
+
+template <H264DecoderConcept DecoderImplT>
 void DecoderBase<DecoderImplT>::PrepareNext()
 {
     static_assert(std::is_nothrow_move_assignable_v<std::span<const std::byte>>);
@@ -342,7 +374,7 @@ std::optional<Frame> DecoderBase<DecoderImplT>::ReleaseBuffer()
     static_assert(std::is_nothrow_move_assignable_v<Frame> &&
                   std::is_nothrow_move_constructible_v<Frame>);
 
-    Frame ret = Frame::Create(*mPendingBuffer, TimestampNext());
+    Frame ret = Frame::Create(mPendingBuffer.value().Image(), TimestampNext());
 
     //This is arguably not best approach, but to test exception safety we either need to introduce ugly mockable object,
     //or hide something like this to throw conditionally
@@ -351,29 +383,29 @@ std::optional<Frame> DecoderBase<DecoderImplT>::ReleaseBuffer()
         throw internal::testing::gDecoderBase_ReleaseBuffer_ThrowValue;
     }
 
+    mNumFramesProcessed = Add(mNumFramesProcessed, 1u);
     mPendingBuffer.reset();
-    mNumFramesProcessed += 1;
     return ret;
 }
 
 template <H264DecoderConcept DecoderImplT>
 void DecoderBase<DecoderImplT>::DiscardBuffer()
 {
-    mPendingBuffer.reset();
-    mNumFramesProcessed += 1;
+    mNumFramesProcessed = Add(mNumFramesProcessed, 1u);
+    mPendingBuffer.reset();   
 }
 
 
 
 template <class T>
 concept DecoderConcept =
-    requires(T v, const T vconst)
+    requires(T v, const T vconst, std::chrono::nanoseconds ts)
 {
     { vconst.TimestampNext() } -> std::same_as<std::chrono::nanoseconds>;
-    { vconst.TimestampLast() } -> std::same_as<std::chrono::nanoseconds>;
     { vconst.HasMore() } noexcept -> std::same_as<bool>;
     { v.GetNext() } -> std::same_as<std::optional<Frame>>;
     { v.SkipNext() } -> std::same_as<void>;
+    { v.SkipTo(ts) } -> std::same_as<void>;
 };
 
 //Wrapper for easy decoding sequential segments
@@ -384,15 +416,14 @@ public:
     SerialDecoderBase(std::vector<DecoderImplT> decoders);
 
     std::chrono::nanoseconds TimestampNext() const;
-    std::chrono::nanoseconds TimestampLast() const;
     bool HasMore() const noexcept;
     std::optional<Frame> GetNext();
     void SkipNext();
+    void SkipTo(std::chrono::nanoseconds to);
 
 private:
     std::vector<DecoderImplT> mDecoders;
     mutable std::size_t mCurrentIndex;
-    std::size_t mLastTimestampIndex;
 
     void EnsureThereIsMoreOrEnd() const;
 };
@@ -402,8 +433,7 @@ using SerialDecoderLibav = SerialDecoderBase<DecoderLibav>;
 template <DecoderConcept DecoderImplT>
 SerialDecoderBase<DecoderImplT>::SerialDecoderBase(std::vector<DecoderImplT> decoders)
     : mDecoders{std::move(decoders)},
-      mCurrentIndex{0},
-      mLastTimestampIndex{0}
+      mCurrentIndex{0}
 {
     if(mDecoders.empty())
     {
@@ -421,7 +451,6 @@ std::optional<Frame> SerialDecoderBase<DecoderImplT>::GetNext()
         return {};
     }
 
-    mLastTimestampIndex = mCurrentIndex;
     return mDecoders[mCurrentIndex].GetNext();
 }
 
@@ -435,8 +464,26 @@ void SerialDecoderBase<DecoderImplT>::SkipNext()
         return;
     }
 
-    mLastTimestampIndex = mCurrentIndex;
     return mDecoders[mCurrentIndex].SkipNext();
+}
+
+template <DecoderConcept DecoderImplT>
+void SerialDecoderBase<DecoderImplT>::SkipTo(std::chrono::nanoseconds to)
+{
+    //really special case, handling it separately makes things much easier
+    if(mCurrentIndex == mDecoders.size())
+    {
+        throw RangeError{"no more frames"};
+    }
+
+    auto index = mDecoders.size() - 1;
+    while(mDecoders[index].HasMore() && index != mCurrentIndex && mDecoders[index].TimestampNext() > to)
+    {
+        index -= 1;
+    }
+
+    mCurrentIndex = index;
+    mDecoders[mCurrentIndex].SkipTo(to);
 }
 
 template <DecoderConcept DecoderImplT>
@@ -450,17 +497,6 @@ std::chrono::nanoseconds SerialDecoderBase<DecoderImplT>::TimestampNext() const
     }
 
     return mDecoders[mCurrentIndex].TimestampNext();
-}
-
-template <DecoderConcept DecoderImplT>
-std::chrono::nanoseconds SerialDecoderBase<DecoderImplT>::TimestampLast() const
-{
-    if(mCurrentIndex == mDecoders.size())
-    {
-        return mDecoders.back().TimestampLast();
-    }
-
-    return mDecoders[mLastTimestampIndex].TimestampLast();
 }
 
 template <DecoderConcept DecoderImplT>

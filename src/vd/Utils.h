@@ -506,6 +506,12 @@ std::array<T, Size> MakeArray(const T &val)
     return ret;
 }
 
+template<typename T, std::size_t N>
+std::vector<T> MakeVector(const T (&arr)[N])
+{
+    return std::vector<T>(std::begin(arr), std::end(arr));
+}
+
 
 
 template <std::invocable T>

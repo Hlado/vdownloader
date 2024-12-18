@@ -1,0 +1,23 @@
+name: C/C++ CI
+
+on:
+  push:
+    branches: [ "github_ci" ]
+  pull_request:
+    branches: [ "github_ci" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup Ninja
+      uses: seanmiddleditch/gha-setup-ninja@v5
+    
+    - name: Build Project
+      uses: threeal/cmake-action@v2.1.0
+      with:
+        generator: Ninja
+        cxx-compiler: clang++

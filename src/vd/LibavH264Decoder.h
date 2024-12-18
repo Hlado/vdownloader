@@ -19,7 +19,7 @@ namespace vd
 class LibavH264Decoder final
 {
 public:
-    LibavH264Decoder(std::uint8_t numThreads = 0u);
+    explicit LibavH264Decoder(std::uint8_t numThreads = 0u);
 
     //Single NAL unit without size/start code prefix is expected
     std::optional<ArgbImage> Decode(std::span<const std::byte> nalUnit);

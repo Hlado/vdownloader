@@ -62,7 +62,7 @@ SerialDecoder MakeDecoder(std::vector<vd::Segment> segments, const vd::DecodingC
     auto decoders = std::vector<Decoder>{};
     for(auto &segment : segments)
     {
-        decoders.emplace_back(config, std::move(segment), numThreads);
+        decoders.emplace_back(config, std::move(segment), LibavH264Decoder{numThreads});
     }
     return SerialDecoder(std::move(decoders));
 }

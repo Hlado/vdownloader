@@ -23,4 +23,7 @@ jobs:
       uses: ilammy/setup-nasm@v1.5.1
   
     - name: CMake generate
-      run: cmake --preset=ninja-clang
+      run: cmake --preset=ninja
+      
+    - name: CMake build
+      run: cmake --build --preset=ninja

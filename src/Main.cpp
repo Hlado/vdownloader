@@ -32,9 +32,8 @@ std::shared_ptr<AP4_ByteStream> OpenSource(const std::string &url, std::size_t c
     {
         res = std::make_shared<Ap4HttpByteStream>(CachedSource{HttpSource{url}, gNumCachedChunks, chunkSize});
     }
-    catch(const std::exception &e)
+    catch(...)
     {
-        Discard(e);
         auto err = AP4_FileByteStream::Create(url.c_str(), AP4_FileByteStream::STREAM_MODE_READ, res);
         if(AP4_FAILED(err))
         {
@@ -187,7 +186,6 @@ int main(int argc, char *argv[])
             ++segmentIndex;
             auto format = options->format;
             
-
             //For some reason, if Slice(...) throws, main thread hangs until already started decoders finish their work.
             //Likely it's because some waiting mechanism inside future destructor, but it's complex topic
             //and is not really worth to dig deep into it. That only delays failure, doesn't introduce any error

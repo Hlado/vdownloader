@@ -3,6 +3,7 @@
 
 #include "Ap4Headers.h"
 #include "Errors.h"
+#include "Utils.h"
 
 #include <algorithm>
 #include <chrono>

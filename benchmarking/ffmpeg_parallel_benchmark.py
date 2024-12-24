@@ -8,7 +8,7 @@ if __name__ == "__main__":
         sys.exit(f"Unexpected number of arguments ({num_args})") 
 
     file_url = benchmarking.video_file_url(link = sys.argv[2], format = sys.argv[3])
-    ffmpeg_script = benchmarking.path_to_script("invoke_ffmpeg.py")
+    ffmpeg_script = benchmarking.path_to_script("invoke_ffmpeg_parallel.py")
     
     benchmarking.run_benchmark(
         [

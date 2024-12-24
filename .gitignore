@@ -3,3 +3,4 @@
 /build/
 /benchmarking/__pycache__/*
 /CMakeUserPresets.json
+/install/

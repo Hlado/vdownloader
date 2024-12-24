@@ -191,9 +191,10 @@ std::optional<Options> ParseOptions(int argc, const char * const * argv)
                        .videoUrl = source.Get(),
                        .segments = ParseSegments(segments),
                        .numThreads = numThreads,
+                       .numDecoderThreads = numDecoderThreads,
                        .chunkSize = chunkSize };
     }
-    catch (args::Help)
+    catch(args::Help &)
     {
         Println(parser);
         return std::nullopt;

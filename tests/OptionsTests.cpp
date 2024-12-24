@@ -99,7 +99,7 @@ TEST(OptionsTests, Threads)
     }
 
     auto argv2 = std::array{"app_path", "url", "1s500ms-2s300ms:22"};
-    options = Parse(argv);
+    options = Parse(argv2);
     ASSERT_TRUE(options);
     ASSERT_EQ(std::thread::hardware_concurrency(), options->numThreads);
 }

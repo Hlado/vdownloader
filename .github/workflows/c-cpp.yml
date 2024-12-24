@@ -1,0 +1,61 @@
+name: C/C++ CI
+
+on:
+  push:
+    branches: [ "github_ci" ]
+  pull_request:
+    branches: [ "github_ci" ]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    
+    runs-on: ${{ matrix.os }}
+
+    env:
+      CMAKE_PRESET: ${{ matrix.os == 'windows-latest' && 'ci_windows' || 'ci_linux' }}
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+          submodules: recursive
+    
+    - name: Setup Ninja
+      uses: seanmiddleditch/gha-setup-ninja@v5
+      
+    - name: Setup NASM
+      uses: ilammy/setup-nasm@v1.5.1
+  
+    - name: Setup MSVC
+      if: ${{ runner.os == 'Windows' }}
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: amd64
+  
+    - name: CMake generate
+      run: cmake --preset=${{ env.CMAKE_PRESET }}
+      
+    - name: CMake build
+      run: cmake --build --preset=${{ env.CMAKE_PRESET }}
+
+    - name: CMake tests
+      run: cmake --build --preset=${{ env.CMAKE_PRESET }} --target test
+      
+    - name: CMake install
+      run: cmake --build --preset=${{ env.CMAKE_PRESET }} --target install
+      
+    - name: Upload artifacts
+      if: ${{ runner.os == 'Windows' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: vdownloader-windows-x64.exe
+        path: install/bin/vdownloader.exe
+        
+    - name: Upload artifacts
+      if: ${{ runner.os == 'Linux' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: vdownloader-linux-x64
+        path: install/bin/vdownloader

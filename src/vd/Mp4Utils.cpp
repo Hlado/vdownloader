@@ -44,11 +44,6 @@ std::chrono::nanoseconds DurationNano(std::uint64_t dur, std::uint32_t timescale
     return std::chrono::nanoseconds{IntCast<std::int64_t>(dur) * std::nano::den / timescale};
 }
 
-std::chrono::nanoseconds DurationNano(std::uint32_t dur, std::uint32_t timescale)
-{
-    return DurationNano(IntCast<std::uint64_t>(dur), timescale);
-}
-
 }//namespace internal
 
 } //namespace vd

@@ -53,4 +53,4 @@ const T *end(const AP4_Array<T> &container)
     return end(const_cast<AP4_Array<T> &>(container));
 }
 
-#endif VDOWNLOADER_VD_AP4_HELPERS_
+#endif //VDOWNLOADER_VD_AP4_HELPERS_

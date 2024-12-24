@@ -1,3 +1,4 @@
+import os
 import pathlib
 import subprocess
 import urllib.parse
@@ -25,12 +26,20 @@ def run_benchmark(commands, times):
     subprocess.run(
         ["hyperfine",
             "--show-output",
-            "-p", f"\"python \"{rmScript}\" .\"",
-            "-c", f"\"python \"{rmScript}\" .\"",
+            "-p", _escape_on_windows(f"python \"{rmScript}\" ."),
+            "-c", _escape_on_windows(f"python \"{rmScript}\" ."),
             "-r", str(times),
-            *_escape(commands)],
+            *_escape_on_windows(commands)],
         check = True)
         
-        
-def _escape(strings):
-    return [f"\"{s}\"" for s in strings]
+def _escape(arg):
+    if isinstance(arg, list):
+        return [f"\"{s}\"" for s in arg]
+
+    return f"\"{arg}\""
+    
+def _escape_on_windows(arg):
+    if not os.name == "nt":
+        return arg
+
+    return _escape(arg)

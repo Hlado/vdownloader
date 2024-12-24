@@ -24,8 +24,6 @@ using SerialDecoder = SerialDecoderBase<Decoder>;
 const std::size_t gNumCachedChunks = 2;
 const int gDefaultNumDecoderThreads = 2;
 
-
-
 std::shared_ptr<AP4_ByteStream> OpenSource(const std::string &url, std::size_t chunkSize)
 {
     std::shared_ptr<AP4_ByteStream> res;
@@ -88,7 +86,7 @@ int PickNumDecoderThreads(std::uint8_t base, const std::atomic<int> &numActiveTh
 
 
 using FrameHandler = std::function<void(const ArgbImage &,std::chrono::nanoseconds,std::size_t)>;
-using Semaphore = std::counting_semaphore<std::numeric_limits<std::ptrdiff_t>::max()>;
+using Semaphore = std::counting_semaphore<std::numeric_limits<decltype(Options::numThreads)>::max()>;
 
 struct ThreadContext final
 {
@@ -163,7 +161,7 @@ void SaveFrame(
     WriteTga(path, image.data, image.width);
 }
 
-}
+}//unnamed namespace
 
 
 

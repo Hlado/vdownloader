@@ -3,6 +3,7 @@
 
 #include "Ap4Headers.h"
 #include "Errors.h"
+#include "Utils.h"
 
 #include <chrono>
 #include <concepts>
@@ -18,11 +19,10 @@ namespace internal
 std::string AcronymToStr(AP4_UI32 val);
 std::unique_ptr<AP4_Atom> ReadNextAtom(std::shared_ptr<AP4_ByteStream> data);
 std::chrono::nanoseconds DurationNano(std::uint64_t dur, std::uint32_t timescale);
-std::chrono::nanoseconds DurationNano(std::uint32_t dur, std::uint32_t timescale);
 
 template <class DerivedT, class BaseT>
     requires std::derived_from<DerivedT, BaseT> &&
-std::derived_from<BaseT, AP4_Atom>
+             std::derived_from<BaseT, AP4_Atom>
 std::unique_ptr<DerivedT> AssertAtomType(std::unique_ptr<BaseT> &&base)
 {
     if(base == nullptr)

@@ -210,13 +210,13 @@ constexpr RetT NoThrowArithmeticOp(bool &overflow, T l, U r, Args...  args)
     if constexpr(sizeof...(args))
     {
         bool tmp;
-        auto ret = NoThrowArithmeticOp<RetT, ArithmeticOpT, RetT, Args...>(overflow, ArithmeticOpT{}.operator()<RetT>(tmp, l, r), args...);
+        auto ret = NoThrowArithmeticOp<RetT, ArithmeticOpT, RetT, Args...>(overflow, ArithmeticOpT{}.template operator()<RetT>(tmp, l, r), args...);
         overflow = overflow || tmp;
         return ret;
     }
     else
     {
-        return ArithmeticOpT{}.operator()<RetT>(overflow, l, r);
+        return ArithmeticOpT{}.template operator()<RetT>(overflow, l, r);
     }
 }
 

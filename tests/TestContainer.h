@@ -3,6 +3,7 @@
 
 #include <vd/Ap4Headers.h>
 #include <vd/Ap4Helpers.h>
+#include <vd/Preprocessor.h>
 #include <vd/Utils.h>
 
 #include <algorithm>
@@ -166,7 +167,7 @@ std::shared_ptr<AP4_MemoryByteStream> Serialize(TestContainerData &data)
     return stream;
 }
 
-std::shared_ptr<AP4_MemoryByteStream> Serialize(TestContainerData &&data)
+VDOWNLOADER_UNUSED std::shared_ptr<AP4_MemoryByteStream> Serialize(TestContainerData &&data)
 {
     return Serialize(data);
 }

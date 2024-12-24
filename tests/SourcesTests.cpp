@@ -1,5 +1,6 @@
 #include <vd/Sources.h>
 #include <vd/Errors.h>
+#include <vd/Preprocessor.h>
 
 #include <gtest/gtest.h>
 
@@ -12,15 +13,25 @@ using namespace vd;
 namespace
 {
 
+//It's not yet clear what port is better to use for testing purposes,
+//but IANA reserved ones look promising because it must guarantee (almost)
+//no collision for short lived apps like tests
+//
+//And, of course, something that works in windows won't work in ubuntu and vice-versa
+#if defined(VDOWNLOADER_OS_WINDOWS)
+    constexpr int gPort = 1027;
+#else
+    constexpr int gPort = 49151;
+#endif
+
 const std::string gContent = "This is content for testing";
 const std::string gContentType = "text/plain";
 const std::string gHostname = "localhost";
-const std::string gAddress = "http://" + gHostname;
+const std::string gAddress = "http://" + gHostname + ":" + std::to_string(gPort);
 const std::string gContentPath = "/content";
 const std::string gUrl = gAddress + gContentPath;
 const std::string gRangesContentPath = "/content_ranges";
 const std::string gUrlRanges = gAddress + gRangesContentPath;
-constexpr int gPort = 80;
 auto gContentSpan = std::as_bytes(std::span<const char>{gContent.cbegin(), gContent.size()});
 auto gDefaultSource = MemoryViewSource{gContentSpan};
 
@@ -59,7 +70,7 @@ protected:
 
             if(!mServer.listen(gHostname, gPort))
             {
-                throw std::exception{"HTTP server reported error"};
+                throw std::runtime_error{"HTTP server failed to start"};
             }
         });
 

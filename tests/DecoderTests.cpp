@@ -274,7 +274,9 @@ namespace
 template <std::ranges::range Range>
 ArgbImage MakeImage(Range &&r)
 {
-    return ArgbImage{.data = std::vector<std::byte>(std::ranges::begin(r),std::ranges::end(r))};
+    return ArgbImage{ .data = std::vector<std::byte>(std::ranges::begin(r),std::ranges::end(r)),
+                      .width = 0,
+                      .height = 0 };
 }
 
 }//unnamed namespace
@@ -654,7 +656,7 @@ TEST(SerialDecoderTests, DecodingTwoSegments)
 
     auto counter1 = std::chrono::nanoseconds{0};
     EXPECT_CALL(*decoder1, GetNext)
-        .WillOnce([&counter1]()->std::optional<Frame>{ return Frame{.timestamp = ++counter1}; })
+        .WillOnce([&counter1]()->std::optional<Frame>{ return Frame{.image = ArgbImage{}, .timestamp = ++counter1}; })
         .WillRepeatedly(Return(std::optional<Frame>{}));
     ON_CALL(*decoder1, TimestampNext)
         .WillByDefault([&counter1]()->std::chrono::nanoseconds{ return counter1.count() != 0 ? throw RangeError{} : counter1 + 1ns; });
@@ -666,7 +668,7 @@ TEST(SerialDecoderTests, DecodingTwoSegments)
     auto counter2 = std::chrono::nanoseconds{1};
     EXPECT_CALL(*decoder2, SkipNext).WillOnce([&counter2]() { ++counter2; });
     EXPECT_CALL(*decoder2, GetNext)
-        .WillOnce([&counter2]()->std::optional<Frame>{ return Frame{.timestamp = ++counter2}; })
+        .WillOnce([&counter2]()->std::optional<Frame>{ return Frame{.image = ArgbImage{}, .timestamp = ++counter2}; })
         .WillRepeatedly(Return(std::optional<Frame>{}));
     ON_CALL(*decoder2, TimestampNext)
         .WillByDefault([&counter2]()->std::chrono::nanoseconds{ return counter2.count() > 2 ? throw RangeError{} : counter2 + 1ns; });

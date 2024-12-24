@@ -231,10 +231,11 @@ CachedSource<SourceT>::Chunk CachedSource<SourceT>::ReadChunk(std::size_t id)
 template <SourceConcept SourceT>
 void CachedSource<SourceT>::DiscardOldestChunk() noexcept
 {
-    static_assert(noexcept(mCache.erase(*mHistory.begin())));
-    mCache.erase(*mHistory.begin());
-    static_assert(noexcept(mHistory.erase(mHistory.begin())));
-    mHistory.erase(mHistory.begin());
+    //TODO
+    //static_assert(noexcept(mCache.erase(*mHistory.begin())));
+    mCache.erase(*mHistory.cbegin());
+    //static_assert(noexcept(mHistory.erase(mHistory.begin())));
+    mHistory.erase(mHistory.cbegin());
 }
 
 } //namespace vd

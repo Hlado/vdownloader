@@ -1,3 +1,5 @@
+![CI status](https://github.com/Hlado/vdownloader/actions/workflows/c-cpp.yml/badge.svg)
+
 # Disclaimer
 
 This is pet-project started for learning purposes, so don't expect any production quality or capabilities from it.

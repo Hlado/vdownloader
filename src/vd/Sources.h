@@ -238,8 +238,8 @@ void CachedSource<SourceT>::DiscardOldestChunk() noexcept
     static_assert(std::is_same_v<History, std::vector<std::size_t>>);
     //It's not confirmed yet, but vector likely prefers move assignment when available
     static_assert(
-        std::is_move_assignable_v<History::value_type> && std::is_nothrow_move_assignable_v<History::value_type>
-            || !std::is_move_assignable_v<History::value_type> && std::is_nothrow_assignable_v<History::value_type, History::value_type>);
+        (std::is_move_assignable_v<History::value_type> && std::is_nothrow_move_assignable_v<History::value_type>)
+            || (!std::is_move_assignable_v<History::value_type> && std::is_nothrow_assignable_v<History::value_type, History::value_type>));
     mHistory.erase(mHistory.cbegin());
 }
 

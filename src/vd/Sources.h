@@ -231,10 +231,15 @@ CachedSource<SourceT>::Chunk CachedSource<SourceT>::ReadChunk(std::size_t id)
 template <SourceConcept SourceT>
 void CachedSource<SourceT>::DiscardOldestChunk() noexcept
 {
-    //TODO
-    //static_assert(noexcept(mCache.erase(*mHistory.begin())));
+    static_assert(noexcept(*mHistory.cbegin()));
+    static_assert(std::is_same_v<Map, std::unordered_map<std::size_t, Chunk>>);
     mCache.erase(*mHistory.cbegin());
-    //static_assert(noexcept(mHistory.erase(mHistory.begin())));
+
+    static_assert(std::is_same_v<History, std::vector<std::size_t>>);
+    //It's not confirmed yet, but vector likely prefers move assignment when available
+    static_assert(
+        (std::is_move_assignable_v<History::value_type> && std::is_nothrow_move_assignable_v<History::value_type>)
+            || (!std::is_move_assignable_v<History::value_type> && std::is_nothrow_assignable_v<History::value_type, History::value_type>));
     mHistory.erase(mHistory.cbegin());
 }
 

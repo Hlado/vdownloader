@@ -70,7 +70,7 @@ private:
     DecoderImplT mDecoder;
     DecodingConfig mConfig;
     Segment mSegment;
-    std::span<const std::byte> mRemainder;
+    std::size_t mPos;
     std::optional<ArgbImage> mPendingBuffer;
     std::vector<std::chrono::nanoseconds> mTimestamps;
     std::size_t mNumFramesProcessed{0};
@@ -150,8 +150,7 @@ DecoderBase<DecoderImplT>::DecoderBase(DecodingConfig config, Segment segment, D
         throw Error{"segment doesn't contain frames"};
     }
 
-    auto offset = AssertDataOffset(mSegment, *trunAtom);
-    mRemainder = std::span<const std::byte>(mSegment.data).subspan(offset);
+    mPos = AssertDataOffset(mSegment, *trunAtom);
 }
 
 template <H264DecoderConcept DecoderImplT>
@@ -309,11 +308,12 @@ void DecoderBase<DecoderImplT>::PrepareNext()
         throw Error{"mPendingBuffer is not empty"};
     }
 
-    while(mRemainder.size_bytes() > 0)
+    while(mPos < mSegment.data.size())
     {
-        auto unit = ReadNalUnit(mRemainder, mConfig.unitLengthSize);
+        auto remainder = std::span(std::next(mSegment.data.cbegin(), mPos), mSegment.data.cend());
+        auto unit = ReadNalUnit(remainder, mConfig.unitLengthSize);
         mPendingBuffer = mDecoder.Decode(unit);
-        mRemainder = mRemainder.subspan(unit.size_bytes() + mConfig.unitLengthSize);
+        mPos += (unit.size_bytes() + mConfig.unitLengthSize);
 
         if(mPendingBuffer)
         {
@@ -365,8 +365,6 @@ void DecoderBase<DecoderImplT>::DiscardBuffer()
 
 
 
-
-
 template <class T>
 concept DecoderConcept =
     requires(T v, const T vconst)
@@ -383,7 +381,7 @@ template <DecoderConcept DecoderImplT>
 class SerialDecoderBase final
 {
 public:
-    SerialDecoderBase(std::vector<DecoderImplT> &&decoders);
+    SerialDecoderBase(std::vector<DecoderImplT> decoders);
 
     std::chrono::nanoseconds TimestampNext() const;
     std::chrono::nanoseconds TimestampLast() const;
@@ -393,8 +391,8 @@ public:
 
 private:
     std::vector<DecoderImplT> mDecoders;
-    mutable std::vector<DecoderImplT>::iterator mCurrentIt;
-    std::vector<DecoderImplT>::iterator mLastTimestampIt;
+    mutable std::size_t mCurrentIndex;
+    std::size_t mLastTimestampIndex;
 
     void EnsureThereIsMoreOrEnd() const;
 };
@@ -402,10 +400,10 @@ private:
 using SerialDecoderLibav = SerialDecoderBase<DecoderLibav>;
 
 template <DecoderConcept DecoderImplT>
-SerialDecoderBase<DecoderImplT>::SerialDecoderBase(std::vector<DecoderImplT> &&decoders)
-    : mDecoders(std::move(decoders)),
-      mCurrentIt(mDecoders.begin()),
-      mLastTimestampIt(mCurrentIt)
+SerialDecoderBase<DecoderImplT>::SerialDecoderBase(std::vector<DecoderImplT> decoders)
+    : mDecoders{std::move(decoders)},
+      mCurrentIndex{0},
+      mLastTimestampIndex{0}
 {
     if(mDecoders.empty())
     {
@@ -418,13 +416,13 @@ std::optional<Frame> SerialDecoderBase<DecoderImplT>::GetNext()
 {
     EnsureThereIsMoreOrEnd();
 
-    if(mCurrentIt == mDecoders.end())
+    if(mCurrentIndex == mDecoders.size())
     {
         return {};
     }
 
-    mLastTimestampIt = mCurrentIt;
-    return mCurrentIt->GetNext();
+    mLastTimestampIndex = mCurrentIndex;
+    return mDecoders[mCurrentIndex].GetNext();
 }
 
 template <DecoderConcept DecoderImplT>
@@ -432,13 +430,13 @@ void SerialDecoderBase<DecoderImplT>::SkipNext()
 {
     EnsureThereIsMoreOrEnd();
 
-    if(mCurrentIt == mDecoders.end())
+    if(mCurrentIndex == mDecoders.size())
     {
         return;
     }
 
-    mLastTimestampIt = mCurrentIt;
-    return mCurrentIt->SkipNext();
+    mLastTimestampIndex = mCurrentIndex;
+    return mDecoders[mCurrentIndex].SkipNext();
 }
 
 template <DecoderConcept DecoderImplT>
@@ -446,23 +444,23 @@ std::chrono::nanoseconds SerialDecoderBase<DecoderImplT>::TimestampNext() const
 {
     EnsureThereIsMoreOrEnd();
 
-    if(mCurrentIt == mDecoders.end())
+    if(mCurrentIndex == mDecoders.size())
     {
         throw RangeError{"no more frames"};
     }
 
-    return mCurrentIt->TimestampNext();
+    return mDecoders[mCurrentIndex].TimestampNext();
 }
 
 template <DecoderConcept DecoderImplT>
 std::chrono::nanoseconds SerialDecoderBase<DecoderImplT>::TimestampLast() const
 {
-    if(mCurrentIt == mDecoders.end())
+    if(mCurrentIndex == mDecoders.size())
     {
         return mDecoders.back().TimestampLast();
     }
 
-    return mLastTimestampIt->TimestampLast();
+    return mDecoders[mLastTimestampIndex].TimestampLast();
 }
 
 template <DecoderConcept DecoderImplT>
@@ -470,15 +468,15 @@ bool SerialDecoderBase<DecoderImplT>::HasMore() const noexcept
 {
     EnsureThereIsMoreOrEnd();
 
-    return mCurrentIt != mDecoders.end();
+    return mCurrentIndex != mDecoders.size();
 }
 
 template <DecoderConcept DecoderImplT>
 void SerialDecoderBase<DecoderImplT>::EnsureThereIsMoreOrEnd() const
 {
-    while(mCurrentIt != mDecoders.end() && !mCurrentIt->HasMore())
+    while(mCurrentIndex != mDecoders.size() && !mDecoders[mCurrentIndex].HasMore())
     {
-        std::advance(mCurrentIt, 1);
+        mCurrentIndex += 1;
     }
 }
 

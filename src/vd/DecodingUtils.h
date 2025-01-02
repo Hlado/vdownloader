@@ -12,6 +12,8 @@ struct ArgbImage final
     std::vector<std::byte> data;
     std::size_t width;
     std::size_t height;
+
+    static ArgbImage SentinelValue();
 };
 
 struct I420Image final

@@ -3,6 +3,8 @@
 
 #include <libyuv.h>
 
+#include <limits>
+
 namespace vd
 {
 

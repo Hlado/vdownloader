@@ -129,8 +129,9 @@ void ForEachFrame(ThreadContext ctx, FrameHandler callback)
                 timestamp = ctx.range.to;
             }
 
-            while(decoder.HasMore() && decoder.TimestampNext() <= timestamp)
+            if(decoder.HasMore() && decoder.TimestampNext() <= timestamp)
             {
+                decoder.SkipTo(timestamp);
                 frame = decoder.GetNext().value();
             }
 

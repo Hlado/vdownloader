@@ -40,9 +40,9 @@ template <class T>
 concept H264DecoderConcept =
     requires(T v, std::span<const std::byte> nalUnit)
 {
-    DecodedImageConcept<typename T::DecodedImage>;
-    { []<DecodedImageConcept T>(std::optional<T> ret) {} (v.Decode(nalUnit)) };
-    { []<DecodedImageConcept T>(std::optional<T> ret) {} (v.Retrieve()) };
+    requires DecodedImageConcept<typename T::DecodedImage>;
+    { []<DecodedImageConcept U>(std::optional<U>) {} (v.Decode(nalUnit)) };
+    { []<DecodedImageConcept U>(std::optional<U>) {} (v.Retrieve()) };
 };
 
 

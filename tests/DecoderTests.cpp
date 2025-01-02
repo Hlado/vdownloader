@@ -22,7 +22,11 @@ const std::byte gNalUnit3[] = {0_b, 0_b, 0_b, 3_b, 0_b, 1_b, 2_b};
 const std::byte gNalUnitData4[] = {0_b, 1_b, 2_b, 3_b};
 const std::byte gNalUnit4[] = {0_b, 0_b, 0_b, 4_b, 0_b, 1_b, 2_b, 3_b};
 
-struct DecodedImage
+
+
+//We cannot simply name it DecodedImage because of GCC [-Werror=changes-meaning] later
+//when injecting it into mock classes via using 
+struct DecodedImageInternal
 {
     ArgbImage image;
     
@@ -32,7 +36,7 @@ struct DecodedImage
 class MockH264Decoder
 {
 public:
-    using DecodedImage = DecodedImage;
+    using DecodedImage = DecodedImageInternal;
     
     MOCK_METHOD(std::optional<DecodedImage>, Retrieve, ());
     MOCK_METHOD(std::optional<DecodedImage>, Decode, (std::span<const std::byte> nalUnit));
@@ -50,7 +54,7 @@ public:
 class MockH264DecoderWrapper
 {
 public:
-    using DecodedImage = DecodedImage;
+    using DecodedImage = DecodedImageInternal;
 
     std::optional<DecodedImage> Retrieve() const
     {
@@ -64,6 +68,34 @@ public:
 
     std::unique_ptr<MockH264Decoder> impl = std::make_unique<MockH264Decoder>();
 };
+
+template <std::ranges::range Range>
+DecodedImageInternal MakeImage(Range &&r)
+{
+    return
+        DecodedImageInternal{
+            ArgbImage{ .data = std::vector<std::byte>(std::ranges::begin(r),std::ranges::end(r)),
+                       .width = 0,
+                       .height = 0 }};
+}
+
+class FakeH264Decoder
+{
+public:
+    using DecodedImage = DecodedImageInternal;
+    
+    std::optional<DecodedImage> Decode(std::span<const std::byte> nalUnit, bool = false)
+    {
+        return MakeImage(nalUnit);
+    }
+
+    std::optional<DecodedImage> Retrieve(bool = false)
+    {
+        return {};
+    }
+};
+
+using DecodedImage = DecodedImageInternal;
 
 
 
@@ -295,21 +327,6 @@ TEST(DecoderTests, DecodingCorruptedH264Stream)
     decoder = DecoderBase<MockH264DecoderWrapper>{DefaultConfig(),segment};
     ASSERT_THROW(decoder.GetNext(), Error);
 }
-
-namespace
-{
-
-template <std::ranges::range Range>
-DecodedImage MakeImage(Range &&r)
-{
-    return
-        DecodedImage{
-            ArgbImage{ .data = std::vector<std::byte>(std::ranges::begin(r),std::ranges::end(r)),
-                       .width = 0,
-                       .height = 0 }};
-}
-
-}//unnamed namespace
 
 TEST(DecoderTests, DecodingCorrectH264Stream)
 {
@@ -692,22 +709,6 @@ TEST(SerialDecoderTests, DecodingTwoSegments)
 }
 
 
-
-class FakeH264Decoder
-{
-public:
-    using DecodedImage = DecodedImage;
-    
-    std::optional<DecodedImage> Decode(std::span<const std::byte> nalUnit, bool = false)
-    {
-        return MakeImage(nalUnit);
-    }
-
-    std::optional<DecodedImage> Retrieve(bool = false)
-    {
-        return {};
-    }
-};
 
 template <class T>
 concept DecoderSeekingTestFactoryConcept =

@@ -50,7 +50,7 @@ jobs:
       if: ${{ runner.os == 'Windows' }}
       uses: actions/upload-artifact@v4
       with:
-        name: vdownloader-windows-x64.exe
+        name: vdownloader-windows-x64
         path: install/bin/vdownloader.exe
         
     - name: Upload artifacts

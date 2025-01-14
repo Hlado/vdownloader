@@ -167,8 +167,10 @@ void SaveFrame(
 
 int main(int argc, char *argv[])
 {
-    static auto semaphore = std::optional<Semaphore>{};
-    static auto numActiveThreads = std::atomic<int>{0};
+    auto semaphore = std::optional<Semaphore>{};
+    auto numActiveThreads = std::atomic<int>{0};
+    auto futures = std::vector<std::future<void>>{};
+    int err = 0;
 
     try
     {
@@ -181,15 +183,14 @@ int main(int argc, char *argv[])
         semaphore.emplace(options->numThreads);
         Mp4Container container(OpenSource(options->videoUrl, options->chunkSize));
 
-        auto futures = std::vector<std::future<void>>{};
         for(std::size_t segmentIndex = 0; auto &segment : options->segments)
         {
             ++segmentIndex;
             auto format = options->format;
             
-            //For some reason, if Slice(...) throws, main thread hangs until already started decoders finish their work.
-            //Likely it's because some waiting mechanism inside future destructor, but it's complex topic
-            //and is not really worth to dig deep into it. That only delays failure, doesn't introduce any error
+            //It's for exception safety of push_back. Has to be placed before async
+            futures.reserve(futures.size() + 1);
+
             auto future = std::async(
                 ForEachFrame,
                     ThreadContext{
@@ -204,22 +205,30 @@ int main(int argc, char *argv[])
                     {
                         SaveFrame(format, segmentIndex, image, timestamp, index);
                     });
-
+            
             futures.push_back(std::move(future));
         }
-
-        //Not very elegant way to deal with exceptions, but nothing fatal will happen,
-        //only corrupted output files at most
-        for(auto &future : futures)
-        {
-            future.get();
-        }
-
-        return 0;
     }
     catch(const std::exception &e)
     {
         Errorln(e.what());
-        return 1;
+        err = 1;
     }
+
+    //It seems that standard doesn't guarantee that futures returned by async will wait for completion in destructor
+    //(at least words "may" and "can" give hint about it), so we have to write this ugly loop
+    for(auto &future : futures)
+    {
+        try
+        {
+            future.get();
+        }
+        catch(const std::exception &e)
+        {
+            Errorln(e.what());
+            err = 1;
+        }
+    }
+
+    return err;
 }

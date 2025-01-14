@@ -6,6 +6,7 @@
 #include "Ap4Helpers.h"
 #include "LibavH264Decoder.h"
 #include "Mp4Utils.h"
+#include "OpenH264Decoder.h"
 #include "Sources.h"
 #include "Track.h"
 #include "Utils.h"
@@ -100,6 +101,7 @@ private:
 };
 
 using DecoderLibav = DecoderBase<LibavH264Decoder>;
+using DecoderOpenH264 = DecoderBase<OpenH264Decoder>;
 
 namespace internal
 {

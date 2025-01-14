@@ -4,6 +4,7 @@ set(SOURCE_FILES vd/Decoder.cpp
                  vd/LibavH264Decoder.cpp
                  vd/Mp4Container.cpp
                  vd/Mp4Utils.cpp
+                 vd/OpenH264Decoder.cpp
                  vd/Options.cpp
                  vd/Sources.cpp
                  vd/Tga.cpp
@@ -19,6 +20,7 @@ set(HEADER_FILES vd/Ap4ByteStream.h
                  vd/LibavH264Decoder.h
                  vd/Mp4Container.h
                  vd/Mp4Utils.h
+                 vd/OpenH264Decoder.h
                  vd/Options.h
                  vd/Preprocessor.h
                  vd/Sources.h
@@ -33,6 +35,7 @@ target_link_libraries(${LIB_NAME} PUBLIC ap4)
 target_link_libraries(${LIB_NAME} PUBLIC httplib::httplib)
 target_link_libraries(${LIB_NAME} PUBLIC yuv)
 target_link_libraries(${LIB_NAME} PUBLIC Poco::Foundation)
+target_link_libraries(${LIB_NAME} PUBLIC PkgConfig::openh264)
 target_link_libraries(${LIB_NAME} PUBLIC ${FFMPEG_LIBRARIES})
 target_include_directories(${LIB_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/3rdparty/args)
 target_include_directories(${LIB_NAME} INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})

@@ -16,7 +16,7 @@ using namespace vd;
 namespace
 {
 
-using Decoder = DecoderLibav;
+using Decoder = DecoderOpenH264;
 using SerialDecoder = SerialDecoderBase<Decoder>;
 
 
@@ -54,12 +54,12 @@ std::string ToString(const std::chrono::duration<RepT, PeriodT> &val)
     return std::format("{}s{}ms", s.count(), ms.count());
 }
 
-SerialDecoder MakeDecoder(std::vector<vd::Segment> segments, const vd::DecodingConfig &config, std::uint8_t numThreads)
+SerialDecoder MakeDecoder(std::vector<vd::Segment> segments, const vd::DecodingConfig &config, std::uint8_t)
 {
     auto decoders = std::vector<Decoder>{};
     for(auto &segment : segments)
     {
-        decoders.emplace_back(config, std::move(segment), LibavH264Decoder{numThreads});
+        decoders.emplace_back(config, std::move(segment));
     }
     return SerialDecoder(std::move(decoders));
 }

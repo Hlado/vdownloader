@@ -13,7 +13,7 @@ Mp4Container::Mp4Container(std::shared_ptr<AP4_ByteStream> data)
 {
     if(!data)
     {
-        throw ArgumentError(R"("data" is null)");
+        throw ArgumentError{R"("data" is null)"};
     }
 
     //ftyp

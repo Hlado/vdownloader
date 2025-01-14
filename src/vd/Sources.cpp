@@ -62,7 +62,7 @@ HttpSource::HttpSource(const std::string &url)
     auto lookupRes = headers.equal_range("Content-Length");
     if(lookupRes.first == headers.end())
     {
-        throw NotFoundError(R"(response doesn't contain header "Content-Length")");
+        throw NotFoundError{R"(response doesn't contain header "Content-Length")"};
     }
 
     mContentLength = StrToUint<decltype(mContentLength)>(lookupRes.first->second);
@@ -182,9 +182,9 @@ void HttpSource::AssertResponseLengthCorrect(std::size_t requested, std::size_t 
 {
     if(requested != actual)
     {
-        throw Error(std::format("requested content length ({}) is not equal to response body size ({})",
+        throw Error{std::format("requested content length ({}) is not equal to response body size ({})",
                                 requested,
-                                actual));
+                                actual)};
     }
 }
 

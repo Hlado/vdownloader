@@ -34,7 +34,7 @@ std::unique_ptr<DerivedT> AssertAtomType(std::unique_ptr<BaseT> &&base)
 
     if(ret == nullptr)
     {
-        throw ArgumentError(std::format(R"(unexpected atom "{}")", AcronymToStr(base->GetType())));
+        throw ArgumentError{std::format(R"(unexpected atom "{}")", AcronymToStr(base->GetType()))};
     }
 
     return ret;
@@ -51,7 +51,7 @@ std::unique_ptr<ExpectedT> GetNextAtom(std::shared_ptr<AP4_ByteStream> data, AP4
     }
     else if(atom->GetType() != atomType)
     {
-        throw Error(std::format(R"(unexpected atom "{}" found instead of "{}")", AcronymToStr(atom->GetType()), AcronymToStr(atomType)));
+        throw Error{std::format(R"(unexpected atom "{}" found instead of "{}")", AcronymToStr(atom->GetType()), AcronymToStr(atomType))};
     }
 
     return AssertAtomType<ExpectedT>(std::move(atom));

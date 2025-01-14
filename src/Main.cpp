@@ -37,7 +37,7 @@ std::shared_ptr<AP4_ByteStream> OpenSource(const std::string &url, std::size_t c
         auto err = AP4_FileByteStream::Create(url.c_str(), AP4_FileByteStream::STREAM_MODE_READ, res);
         if(AP4_FAILED(err))
         {
-            throw Error(std::format(R"(Unable to open video source "{}")", url));
+            throw Error{std::format(R"(Unable to open video source "{}")", url)};
         }
     }
 

@@ -33,13 +33,13 @@ std::chrono::nanoseconds ParseTimestamp(const std::string &str)
     auto matches = std::smatch{};
     if(!std::regex_match(str,matches,re))
     {
-        throw ArgumentError(std::format(R"(segment timestamp "{}" has unknown format)", str));
+        throw ArgumentError{std::format(R"(segment timestamp "{}" has unknown format)", str)};
     }
 
     auto msecs = Convert<std::chrono::milliseconds>(matches[2].str());
     if(msecs >= 1000ms)
     {
-        throw RangeError(std::format(R"(milliseconds "{}" must be in range [0,1000))", matches[2].str()));
+        throw RangeError{std::format(R"(milliseconds "{}" must be in range [0,1000))", matches[2].str())};
     }
 
     return Convert<std::chrono::seconds>(matches[1].str()) + msecs;
@@ -52,7 +52,7 @@ Options::Segment ParseSegment(const std::string &fromStr, const std::string &toS
 
     if(from >= to)
     {
-        throw ArgumentError(std::format("segment finish ({}) must be greater than start ({})", toStr, fromStr));
+        throw ArgumentError{std::format("segment finish ({}) must be greater than start ({})", toStr, fromStr)};
     }
 
     return Options::Segment {.from = std::move(from),
@@ -67,7 +67,7 @@ Options::Segment ParseSegment(const std::string &str)
     auto matches = std::smatch{};
     if(!std::regex_match(str,matches,re))
     {
-        throw ArgumentError(std::format(R"(segment string "{}" has unknown format)", str));
+        throw ArgumentError{std::format(R"(segment string "{}" has unknown format)", str)};
     }
 
     return ParseSegment(matches[1].str(), matches[2].str(), matches[3].str());

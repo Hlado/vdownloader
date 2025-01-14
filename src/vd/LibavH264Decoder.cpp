@@ -38,8 +38,8 @@ void AssertImageFormat(const AVFrame &frame)
 
 
 LibavH264Decoder::DecodedImage::DecodedImage(FramePointer &&frame, std::function<void(FramePointer &&)> backToPool)
-    : frame{std::move(frame)},
-      backToPool{backToPool}
+    : mFrame{std::move(frame)},
+      mBackToPool{backToPool}
 {
 
 }
@@ -48,14 +48,14 @@ LibavH264Decoder::DecodedImage::~DecodedImage()
 {
     try
     {
-        backToPool(std::move(frame));
+        mBackToPool(std::move(mFrame));
     }
     catch(...) {}
 }
 
 ArgbImage LibavH264Decoder::DecodedImage::Image() const
 {
-    return ToArgb(ToI420Image(*frame));
+    return ToArgb(ToI420Image(*mFrame));
 }
 
 

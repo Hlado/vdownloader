@@ -44,8 +44,8 @@ public:
         ArgbImage Image() const;
 
     private:
-        FramePointer frame;
-        std::function<void(FramePointer &&)> backToPool;
+        FramePointer mFrame;
+        std::function<void(FramePointer &&)> mBackToPool;
     };
 
 

@@ -121,11 +121,11 @@ void Track::LoadDescriptors(AP4_SidxAtom &sidxAtom)
     {
         if(ref.m_ReferenceType == 1)
         {
-            throw NotSupportedError(R"("sidx" atom format is not supported)");
+            throw NotSupportedError{R"("sidx" atom format is not supported)"};
         }
         if(ref.m_ReferencedSize == 0 || ref.m_SubsegmentDuration == 0)
         {
-            throw ArgumentError("segment has zero size or duration");
+            throw ArgumentError{"segment has zero size or duration"};
         }
 
         auto duration = DurationNano(ref.m_SubsegmentDuration, mDecodingConfig.timescale);
@@ -147,7 +147,7 @@ void Track::AssertHasSegments() const
 {
     if(mOrderedDescriptors.empty())
     {
-        throw Error(std::format("Track ({}) has no segments", mId));
+        throw Error{std::format("Track ({}) has no segments", mId)};
     }
 }
 

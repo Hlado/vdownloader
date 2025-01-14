@@ -142,7 +142,7 @@ CachedSource<SourceT>::CachedSource(SourceT source,
 {
     if(mChunkSize < 1)
     {
-        throw ArgumentError("chunk size must be greater than 0");
+        throw ArgumentError{"chunk size must be greater than 0"};
     }
 }
 

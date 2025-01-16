@@ -33,7 +33,6 @@ concept SourceConcept =
 namespace internal
 {
 
-//buf size must be greater than 0
 void AssertRangeCorrect(
     std::size_t pos, std::span<const std::byte> buf, std::size_t contentLength);
 
@@ -155,12 +154,6 @@ std::size_t CachedSource<SourceT>::GetContentLength() const noexcept(noexcept(mS
 template <SourceConcept SourceT>
 void CachedSource<SourceT>::Read(std::size_t pos, std::span<std::byte> buf)
 {
-    //This precondition is essential for next checks
-    if(buf.size_bytes() == 0)
-    {
-        return;
-    }
-
     internal::AssertRangeCorrect(pos, buf, GetContentLength());
 
     auto remainder = buf.size_bytes();

@@ -38,13 +38,8 @@ namespace internal
 void AssertRangeCorrect(
     std::size_t pos, std::span<const std::byte> buf, std::size_t contentLength)
 {
-    if(buf.size_bytes() == 0)
-    {
-        throw ArgumentError{R"("buf" size must be greater than 0)"};
-    }
-
-    auto to = Add<std::size_t>(pos, buf.size_bytes() - 1);
-    if(to >= contentLength)
+    auto to = Add<std::size_t>(pos, buf.size_bytes());
+    if(to > contentLength)
     {
         throw RangeError{};
     }
@@ -203,13 +198,7 @@ std::size_t MemoryViewSource::GetContentLength() const noexcept
 
 void MemoryViewSource::Read(std::size_t pos, std::span<std::byte> buf)
 {
-    //This precondition is essential for next checks
-    if(buf.size_bytes() == 0)
-    {
-        return;
-    }
-
-    internal::AssertRangeCorrect(pos, buf, GetContentLength());
+    AssertRangeCorrect(pos, buf, GetContentLength());
 
     std::memcpy(buf.data(), mBuf.data() + pos, buf.size_bytes());
 }

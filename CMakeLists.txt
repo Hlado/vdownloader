@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 project(vdownloader CXX)
 
+list(APPEND CMAKE_CTEST_ARGUMENTS "--output-on-failure")
 include(CTest)
 
 set(BUILD_APPS OFF CACHE BOOL INTERNAL FORCE)

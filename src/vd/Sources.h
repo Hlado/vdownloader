@@ -10,6 +10,7 @@
 #include "Utils.h"
 
 #include <concepts>
+#include <memory>
 #include <span>
 #include <string>
 #include <type_traits>
@@ -103,29 +104,41 @@ public:
     explicit CachedSource(SourceT source,
                           std::size_t maxChunks = 1,
                           std::size_t chunkSize = cDefaultChunkSize);
-    CachedSource(const CachedSource &) = default;
-    CachedSource &operator=(const CachedSource &) = default;
+    CachedSource(const CachedSource &) = delete;
+    CachedSource &operator=(const CachedSource &) = delete;
     CachedSource(CachedSource &&) = default;
     CachedSource &operator=(CachedSource &&) = default;
     ~CachedSource() = default;
 
+    std::size_t NumCachedChunks() const noexcept;
     std::size_t GetContentLength() const noexcept(noexcept(mSrc.GetContentLength()));
     //Reading zero bytes performs no operation and returns immediately
     void Read(std::size_t pos, std::span<std::byte> buf);
 private:
     using Chunk = std::vector<std::byte>;
-    using Map = std::unordered_map<std::size_t, Chunk>;
-    using History = std::vector<std::size_t>;
+
+    struct Node
+    {
+        Chunk chunk;
+        std::size_t id;
+        std::uint64_t generation;
+    };
+    using NodePtr = std::shared_ptr<Node>;
+    
+    using IdMap = std::unordered_map<std::size_t, NodePtr>;
+    using GenerationMap = std::map<std::uint64_t, NodePtr>;
     
     SourceT mSrc;
-    Map mCache;
-    History mHistory;
+    IdMap mIdMap;
+    GenerationMap mGenMap;
+    std::uint64_t mGeneration{0};
     const std::size_t mMaxChunks;
     const std::size_t mChunkSize;
 
     std::size_t GetChunkId(std::size_t pos) const noexcept;
+    Chunk &GetChunk(std::size_t id);
     //In case of exception oldest chunk may be discarded but new chunk won't be inserted into cache
-    Map::iterator CacheChunk(std::size_t id);
+    Chunk &CacheChunk(std::size_t id);
     Chunk ReadChunk(std::size_t id);
     //Precondition: at least 1 item is in cache
     void DiscardOldestChunk() noexcept;
@@ -146,6 +159,12 @@ CachedSource<SourceT>::CachedSource(SourceT source,
 }
 
 template <SourceConcept SourceT>
+std::size_t CachedSource<SourceT>::NumCachedChunks() const noexcept
+{
+    return mIdMap.size();
+}
+
+template <SourceConcept SourceT>
 std::size_t CachedSource<SourceT>::GetContentLength() const noexcept(noexcept(mSrc.GetContentLength()))
 {
     return mSrc.GetContentLength();
@@ -161,12 +180,7 @@ void CachedSource<SourceT>::Read(std::size_t pos, std::span<std::byte> buf)
     auto chunkId = GetChunkId(pos);
     while(remainder > 0)
     {
-        auto chunkIt = mCache.find(chunkId);
-        if(chunkIt == mCache.end())
-        {
-            chunkIt = CacheChunk(chunkId);
-        }
-        const auto &chunk = chunkIt->second;
+        const auto &chunk = GetChunk(chunkId);
 
         auto offset = pos - (chunkId * mChunkSize);
         auto len = std::min(remainder, mChunkSize - offset);
@@ -186,28 +200,49 @@ std::size_t CachedSource<SourceT>::GetChunkId(std::size_t pos) const noexcept
 }
 
 template <SourceConcept SourceT>
-CachedSource<SourceT>::Map::iterator CachedSource<SourceT>::CacheChunk(std::size_t id)
+CachedSource<SourceT>::Chunk &CachedSource<SourceT>::GetChunk(std::size_t id)
+{
+    auto idIt = mIdMap.find(id);
+    if(idIt != mIdMap.end())
+    {
+        auto &node = *idIt->second;
+        auto genMapNode = mGenMap.extract(node.generation);
+        genMapNode.key() = mGeneration;
+        node.generation = mGeneration;
+        auto &res = mGenMap.insert(std::move(genMapNode)).position->second->chunk;
+        ++mGeneration;
+        return res;
+    } else {
+        auto &res = CacheChunk(id);
+        ++mGeneration;
+        return res;
+    }
+}
+
+template <SourceConcept SourceT>
+CachedSource<SourceT>::Chunk &CachedSource<SourceT>::CacheChunk(std::size_t id)
 {
     auto chunk = ReadChunk(id);
 
-    if(mMaxChunks != 0 && !(mHistory.size() < mMaxChunks))
+    if(mMaxChunks != 0 && !(mIdMap.size() < mMaxChunks))
     {
         DiscardOldestChunk();
     }
     
-    mHistory.push_back(id);
+    auto nodePtr = NodePtr{new Node{ .chunk = std::move(chunk), .id = id, .generation = mGeneration}};
+    auto genIt = mGenMap.insert(std::make_pair(mGeneration, nodePtr)).first;
     try
     {
-        mCache.insert(std::make_pair(id, std::move(chunk))).first;
+        mIdMap.insert(std::make_pair(id, nodePtr));
     }
     catch(...)
     {
-        static_assert(noexcept(mHistory.pop_back()));
-        mHistory.pop_back();
+        static_assert(noexcept(mGenMap.erase(genIt)));
+        mGenMap.erase(genIt);
         throw;
     }
 
-    return mCache.find(id);
+    return nodePtr->chunk;
 }
 
 template <SourceConcept SourceT>
@@ -224,16 +259,8 @@ CachedSource<SourceT>::Chunk CachedSource<SourceT>::ReadChunk(std::size_t id)
 template <SourceConcept SourceT>
 void CachedSource<SourceT>::DiscardOldestChunk() noexcept
 {
-    static_assert(noexcept(*mHistory.cbegin()));
-    static_assert(std::is_same_v<Map, std::unordered_map<std::size_t, Chunk>>);
-    mCache.erase(*mHistory.cbegin());
-
-    static_assert(std::is_same_v<History, std::vector<std::size_t>>);
-    //It's not confirmed yet, but vector likely prefers move assignment when available
-    static_assert(
-        (std::is_move_assignable_v<History::value_type> && std::is_nothrow_move_assignable_v<History::value_type>)
-            || (!std::is_move_assignable_v<History::value_type> && std::is_nothrow_assignable_v<History::value_type, History::value_type>));
-    mHistory.erase(mHistory.cbegin());
+    mIdMap.erase(mGenMap.cbegin()->second->id);
+    mGenMap.erase(mGenMap.cbegin());
 }
 
 } //namespace vd

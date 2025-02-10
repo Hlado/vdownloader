@@ -2,12 +2,14 @@
 #include <vd/Errors.h>
 #include <vd/Preprocessor.h>
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <future>
 #include <regex>
 #include <thread>
 
+using namespace testing;
 using namespace vd;
 
 namespace
@@ -24,7 +26,7 @@ namespace
     constexpr int gPort = 49151;
 #endif
 
-const std::string gContent = "This is content for testing";
+const std::string gContent = "Content for testing 32 chars    ";
 const std::string gContentType = "text/plain";
 const std::string gHostname = "localhost";
 const std::string gAddress = "http://" + gHostname + ":" + std::to_string(gPort);
@@ -145,56 +147,126 @@ TEST_F(HttpSourceTestF, ReadPartial)
 
 
 
-class CachedSourceTestF : public SourceBaseTestF
+class MockSource
 {
+public:
+    MOCK_METHOD(void, Read, (std::size_t pos, std::span<std::byte> buf));
+    MOCK_METHOD(std::size_t, GetContentLength, (), (const));
 
+    MockSource()
+    {
+        ON_CALL(*this, Read)
+            .WillByDefault(Return());
+    }
 };
 
-TEST_F(CachedSourceTestF, ZeroChunkSizeThrows)
+class MockSourceWrapper
+{
+public:
+    std::size_t GetContentLength() const
+    {
+        return impl->GetContentLength();
+    }
+
+    void Read(std::size_t pos, std::span<std::byte> buf)
+    {
+        return impl->Read(pos, buf);
+    }
+
+    std::unique_ptr<MockSource> impl = std::make_unique<MockSource>();
+};
+
+TEST(CachedSourceTests, ZeroChunkSizeThrows)
 {
     ASSERT_THROW(CachedSource(MemoryViewSource{}, 1, 0), ArgumentError);
 }
 
-TEST_F(CachedSourceTestF, ReadFullOneChunkIsEnough)
+TEST(CachedSourceTests, ReadFullOneChunkIsEnough)
 {
     auto buf = std::string(gContent.size(), '\0');
     auto span = std::span<char>{buf};
-    CachedSource{gDefaultSource, 0, gContent.size()}.Read(0, std::as_writable_bytes(span));
+    auto source = CachedSource{gDefaultSource, 0, gContent.size()};
+    source.Read(0, std::as_writable_bytes(span));
     ASSERT_EQ(gContent, buf);
+    ASSERT_EQ(1, source.NumCachedChunks());
 }
 
-TEST_F(CachedSourceTestF, ReadFullLittleChunksNoCache)
+TEST(CachedSourceTests, ReadFullLittleChunksNoCache)
 {
     auto buf = std::string(gContent.size(), '\0');
     auto span = std::span<char>{buf};
-    CachedSource{gDefaultSource, 1, 1}.Read(0, std::as_writable_bytes(span));
+    auto source = CachedSource{gDefaultSource, 1, 1};
+    source.Read(0, std::as_writable_bytes(span));
     ASSERT_EQ(gContent, buf);
+    ASSERT_EQ(1, source.NumCachedChunks());
 }
 
-TEST_F(CachedSourceTestF, ReadFullLittleChunksUnlimitedCache)
+TEST(CachedSourceTests, ReadFullLittleChunksUnlimitedCache)
 {
     auto buf = std::string(gContent.size(), '\0');
     auto span = std::span<char>{buf};
-    CachedSource{gDefaultSource, 0, 1}.Read(0, std::as_writable_bytes(span));
+    auto source = CachedSource{gDefaultSource, 0, 1};
+    source.Read(0, std::as_writable_bytes(span));
     ASSERT_EQ(gContent, buf);
+    ASSERT_EQ(gContent.size(), source.NumCachedChunks());
 }
 
-TEST_F(CachedSourceTestF, ReadPartialNeighborChunksRepeated)
+TEST(CachedSourceTests, ReadPartialNeighborChunksRepeated)
 {
+    if(gContent.size() % 8 != 0)
+    {
+        FAIL();
+    }
+
     auto half = gContent.size() / 2;
     auto quarter = gContent.size() / 4;
     auto eighth = gContent.size() / 8;
 
     auto buf = std::string(half, '\0');
     auto span = std::span<char>{buf};
-    auto src = CachedSource{gDefaultSource, 0, half};
+    auto source = CachedSource{gDefaultSource, 0, half};
 
-    src.Read(quarter, std::as_writable_bytes(span));
+    source.Read(quarter, std::as_writable_bytes(span));
     ASSERT_EQ(gContent.substr(quarter, half), buf);
+    ASSERT_EQ(2, source.NumCachedChunks());
 
-    buf = std::string(half, '\0');
-    src.Read(eighth, std::as_writable_bytes(span));
+    source.Read(eighth, std::as_writable_bytes(span));
     ASSERT_EQ(gContent.substr(eighth, half), buf);
+    ASSERT_EQ(2, source.NumCachedChunks());
+}
+
+TEST(CachedSourceTests, DiscardsLeastUsed)
+{
+    using namespace vd::literals;
+
+    auto wrapper = MockSourceWrapper{};
+    auto mock = wrapper.impl.get();
+    
+    ON_CALL(*mock, GetContentLength)
+            .WillByDefault(Return(30));
+    EXPECT_CALL(*mock, Read(Eq(10),_)).
+        Times(Exactly(2));
+    EXPECT_CALL(*mock, Read(Eq(0),_)).
+        Times(Exactly(1));
+    EXPECT_CALL(*mock, Read(Eq(20),_)).
+        Times(Exactly(1));
+
+    auto source = CachedSource<MockSourceWrapper>{std::move(wrapper), 2, 10};
+
+    auto arr = MakeArray<1>(1_b);
+    auto buf = std::span<std::byte>(arr);
+    source.Read(0, buf);
+    ASSERT_EQ(1, source.NumCachedChunks());
+    source.Read(10, buf);
+    ASSERT_EQ(2, source.NumCachedChunks());
+    source.Read(0, buf);
+    ASSERT_EQ(2, source.NumCachedChunks());
+    source.Read(20, buf);
+    ASSERT_EQ(2, source.NumCachedChunks());
+    source.Read(0, buf);
+    ASSERT_EQ(2, source.NumCachedChunks());
+    source.Read(10, buf);
+    ASSERT_EQ(2, source.NumCachedChunks());
 }
 
 
@@ -235,7 +307,7 @@ struct MemoryViewSourceWrapper
     }
 };
 
-struct ChunkedSourceWrapper
+struct CachedSourceWrapper
 {
     CachedSource<MemoryViewSource> impl{gDefaultSource};
 
@@ -252,7 +324,7 @@ struct ChunkedSourceWrapper
 
 using SourceTypes = ::testing::Types<HttpSourceWrapper,
                                      MemoryViewSourceWrapper,
-                                     ChunkedSourceWrapper>;
+                                     CachedSourceWrapper>;
 TYPED_TEST_SUITE(SourceTestF, SourceTypes);
 
 TYPED_TEST(SourceTestF, ContentLengthIsAvailableAfterConstruction)

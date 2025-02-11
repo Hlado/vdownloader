@@ -26,7 +26,7 @@ namespace
     constexpr int gPort = 49151;
 #endif
 
-const std::string gContent = "Content for testing 32 chars    ";
+const std::string gContent = "This is content for testing";
 const std::string gContentType = "text/plain";
 const std::string gHostname = "localhost";
 const std::string gAddress = "http://" + gHostname + ":" + std::to_string(gPort);
@@ -213,7 +213,7 @@ TEST(CachedSourceTests, ReadFullLittleChunksUnlimitedCache)
 
 TEST(CachedSourceTests, ReadPartialNeighborChunksRepeated)
 {
-    if(gContent.size() % 8 != 0)
+    if(gContent.size() < 8)
     {
         FAIL();
     }

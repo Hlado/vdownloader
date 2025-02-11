@@ -10,7 +10,7 @@
 #include "Utils.h"
 
 #include <concepts>
-#include <memory>
+#include <list>
 #include <span>
 #include <string>
 #include <type_traits>
@@ -114,24 +114,22 @@ public:
     std::size_t GetContentLength() const noexcept(noexcept(mSrc.GetContentLength()));
     //Reading zero bytes performs no operation and returns immediately
     void Read(std::size_t pos, std::span<std::byte> buf);
+
 private:
     using Chunk = std::vector<std::byte>;
 
-    struct Node
+    struct Entry
     {
-        Chunk chunk;
         std::size_t id;
-        std::uint64_t generation;
+        Chunk chunk;
     };
-    using NodePtr = std::shared_ptr<Node>;
-    
-    using IdMap = std::unordered_map<std::size_t, NodePtr>;
-    using GenerationMap = std::map<std::uint64_t, NodePtr>;
+
+    using Entries = std::list<Entry>;
+    using Index = std::unordered_map<std::size_t, typename Entries::iterator>;
     
     SourceT mSrc;
-    IdMap mIdMap;
-    GenerationMap mGenMap;
-    std::uint64_t mGeneration{0};
+    Index mIndex;
+    Entries mEntries;
     const std::size_t mMaxChunks;
     const std::size_t mChunkSize;
 
@@ -161,7 +159,7 @@ CachedSource<SourceT>::CachedSource(SourceT source,
 template <SourceConcept SourceT>
 std::size_t CachedSource<SourceT>::NumCachedChunks() const noexcept
 {
-    return mIdMap.size();
+    return mIndex.size();
 }
 
 template <SourceConcept SourceT>
@@ -202,20 +200,13 @@ std::size_t CachedSource<SourceT>::GetChunkId(std::size_t pos) const noexcept
 template <SourceConcept SourceT>
 CachedSource<SourceT>::Chunk &CachedSource<SourceT>::GetChunk(std::size_t id)
 {
-    auto idIt = mIdMap.find(id);
-    if(idIt != mIdMap.end())
+    auto indexIt = mIndex.find(id);
+    if(indexIt != mIndex.end())
     {
-        auto &node = *idIt->second;
-        auto genMapNode = mGenMap.extract(node.generation);
-        genMapNode.key() = mGeneration;
-        node.generation = mGeneration;
-        auto &res = mGenMap.insert(std::move(genMapNode)).position->second->chunk;
-        ++mGeneration;
-        return res;
+        mEntries.splice(mEntries.end(), mEntries, indexIt->second);
+        return indexIt->second->chunk;
     } else {
-        auto &res = CacheChunk(id);
-        ++mGeneration;
-        return res;
+        return CacheChunk(id);
     }
 }
 
@@ -224,25 +215,24 @@ CachedSource<SourceT>::Chunk &CachedSource<SourceT>::CacheChunk(std::size_t id)
 {
     auto chunk = ReadChunk(id);
 
-    if(mMaxChunks != 0 && !(mIdMap.size() < mMaxChunks))
+    if(mMaxChunks != 0 && !(mIndex.size() < mMaxChunks))
     {
         DiscardOldestChunk();
     }
     
-    auto nodePtr = NodePtr{new Node{ .chunk = std::move(chunk), .id = id, .generation = mGeneration}};
-    auto genIt = mGenMap.insert(std::make_pair(mGeneration, nodePtr)).first;
+    mEntries.push_back(Entry{.id = id, .chunk = std::move(chunk)});
     try
     {
-        mIdMap.insert(std::make_pair(id, nodePtr));
+        mIndex.insert(std::make_pair(id, std::prev(mEntries.end())));
     }
     catch(...)
     {
-        static_assert(noexcept(mGenMap.erase(genIt)));
-        mGenMap.erase(genIt);
+        static_assert(noexcept(mEntries.pop_back()));
+        mEntries.pop_back();
         throw;
     }
 
-    return nodePtr->chunk;
+    return mEntries.back().chunk;
 }
 
 template <SourceConcept SourceT>
@@ -259,8 +249,8 @@ CachedSource<SourceT>::Chunk CachedSource<SourceT>::ReadChunk(std::size_t id)
 template <SourceConcept SourceT>
 void CachedSource<SourceT>::DiscardOldestChunk() noexcept
 {
-    mIdMap.erase(mGenMap.cbegin()->second->id);
-    mGenMap.erase(mGenMap.cbegin());
+    mIndex.erase(mEntries.front().id);
+    mEntries.pop_front();
 }
 
 } //namespace vd

@@ -9,8 +9,10 @@
 #include <regex>
 #include <thread>
 
-using namespace testing;
+
 using namespace vd;
+using namespace testing;
+using namespace std::chrono_literals;
 
 namespace
 {
@@ -267,6 +269,113 @@ TEST(CachedSourceTests, DiscardsLeastUsed)
     ASSERT_EQ(2, source.NumCachedChunks());
     source.Read(10, buf);
     ASSERT_EQ(2, source.NumCachedChunks());
+}
+
+
+
+TEST(ThreadSafeSourceTests, RaceIfUnguarded)
+{
+    MockSource mock;
+    volatile std::int64_t counter{0};
+
+    auto unsafeIncrement =
+        [&counter]()
+        {
+            auto buf = counter;
+            std::this_thread::sleep_for(10ms);
+            counter = ++buf;
+        };
+
+    ON_CALL(mock, Read)
+        .WillByDefault(unsafeIncrement);
+    ON_CALL(mock, GetContentLength)
+        .WillByDefault(
+            [unsafeIncrement]() -> std::size_t
+            {
+                unsafeIncrement();
+                return 0;
+            });
+    EXPECT_CALL(mock, Read)
+        .Times(AnyNumber());
+    EXPECT_CALL(mock, GetContentLength)
+        .Times(AnyNumber());
+
+    std::thread t1(
+        [&mock]()
+        {
+            for(size_t i = 0; i < 100; ++i)
+            {
+                mock.Read(0, std::span<std::byte>{});
+            };
+        });
+
+    std::thread t2(
+        [&mock]()
+        {
+            for(size_t i = 0; i < 100; ++i)
+            {
+                mock.GetContentLength();
+            };
+        });
+
+    t1.join();
+    t2.join();
+
+    ASSERT_NE(200, counter);
+}
+
+TEST(ThreadSafeSourceTests, NoRaceIfGuarded)
+{
+    auto wrapper = MockSourceWrapper{};
+    auto mock = wrapper.impl.get();
+    volatile std::int64_t counter{0};
+
+    auto unsafeIncrement =
+        [&counter]()
+        {
+            auto buf = counter;
+            std::this_thread::sleep_for(10ms);
+            counter = ++buf;
+        };
+
+    ON_CALL(*mock, Read)
+        .WillByDefault(unsafeIncrement);
+    ON_CALL(*mock, GetContentLength)
+        .WillByDefault(
+            [unsafeIncrement]() -> std::size_t
+            {
+                unsafeIncrement();
+                return 0;
+            });
+    EXPECT_CALL(*mock, Read)
+        .Times(AnyNumber());
+    EXPECT_CALL(*mock, GetContentLength)
+        .Times(AnyNumber());
+
+    ThreadSafeSource<MockSourceWrapper> source{std::move(wrapper)};
+
+    std::thread t1(
+        [&source]()
+        {
+            for(size_t i = 0; i < 100; ++i)
+            {
+                source.Read(0, std::span<std::byte>{});
+            };
+        });
+
+    std::thread t2(
+        [&source]()
+        {
+            for(size_t i = 0; i < 100; ++i)
+            {
+                source.GetContentLength();
+            };
+        });
+
+    t1.join();
+    t2.join();
+
+    ASSERT_EQ(200, counter);
 }
 
 

@@ -11,6 +11,7 @@
 
 #include <concepts>
 #include <list>
+#include <mutex>
 #include <span>
 #include <string>
 #include <type_traits>
@@ -101,6 +102,7 @@ class CachedSource final
 public:
     static const std::size_t cDefaultChunkSize = 1 << 19;
 
+    
     explicit CachedSource(SourceT source,
                           std::size_t maxChunks = 1,
                           std::size_t chunkSize = cDefaultChunkSize);
@@ -251,6 +253,50 @@ void CachedSource<SourceT>::DiscardOldestChunk() noexcept
 {
     mIndex.erase(mEntries.front().id);
     mEntries.pop_front();
+}
+
+
+
+//Wrapper to allow multithreaded operations on sources.
+template <SourceConcept SourceT>
+class ThreadSafeSource final
+{
+public:
+    explicit ThreadSafeSource(SourceT source);
+
+    ThreadSafeSource(const ThreadSafeSource &) = delete;
+    ThreadSafeSource &operator=(const ThreadSafeSource &) = delete;
+    ThreadSafeSource(ThreadSafeSource &&) = default;
+    ThreadSafeSource &operator=(ThreadSafeSource &&) = default;
+    ~ThreadSafeSource() = default;
+
+    std::size_t GetContentLength() const;
+    void Read(std::size_t pos, std::span<std::byte> buf);
+
+private:
+    SourceT mSrc;
+    mutable std::mutex mMutex;
+};
+
+template <SourceConcept SourceT>
+ThreadSafeSource<SourceT>::ThreadSafeSource(SourceT source)
+    : mSrc{std::move(source)}
+{
+
+}
+
+template <SourceConcept SourceT>
+std::size_t ThreadSafeSource<SourceT>::GetContentLength() const
+{
+    auto lock = std::lock_guard{mMutex};
+    return mSrc.GetContentLength();
+}
+
+template <SourceConcept SourceT>
+void ThreadSafeSource<SourceT>::Read(std::size_t pos, std::span<std::byte> buf)
+{
+    auto lock = std::lock_guard{mMutex};
+    return mSrc.Read(pos, buf);
 }
 
 } //namespace vd

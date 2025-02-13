@@ -146,6 +146,11 @@ TEST(UtilsTests, SintCast)
     ASSERT_THROW(IntCast<std::int8_t>((std::int64_t)-129), RangeError);
 }
 
+TEST(UtilsTests, Format)
+{
+    ASSERT_EQ("2 test 1", Format("{1} test {0}", 1, 2));
+}
+
 TEST(UtilsTests, PrintfTo)
 {
     std::ostringstream ss;

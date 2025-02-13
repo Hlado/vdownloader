@@ -5,6 +5,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <cstdio>
 #include <future>
 #include <regex>
 #include <thread>
@@ -145,6 +146,13 @@ TEST_F(HttpSourceTestF, ReadPartial)
 
     test(gUrl);
     test(gUrlRanges);
+}
+
+
+
+TEST(FileSourceTests, ConstructorThrowsIfFileDoesntExist)
+{
+    ASSERT_ANY_THROW(FileSource("absurd path to non-existent file"));
 }
 
 
@@ -416,6 +424,58 @@ struct MemoryViewSourceWrapper
     }
 };
 
+struct FileSourceWrapper
+{
+    std::unique_ptr<FileSource> impl;
+    std::filesystem::path tmpFilePath;
+
+    FileSourceWrapper()
+    {
+        //There is some hint about tread safety on cppreference, but
+        //tests are running in a single threaded manner, so doesn't matter
+        auto nameBuf = std::tmpnam(nullptr);
+        if(nameBuf == nullptr)
+        {
+            throw Error{"failed to generate temporary file name"};
+        }
+        std::string fileName = nameBuf;
+        tmpFilePath = std::filesystem::temp_directory_path() / fileName;
+
+        auto of = std::ofstream(tmpFilePath, std::ios_base::binary | std::ios_base::out);
+        if(!of)
+        {
+            throw Error{"failed to open temporary file for writing"};
+        }
+
+        of.write(gContent.data(), gContent.size());
+        if(!of)
+        {
+            throw Error{"failed to write to temporary file"};
+        }
+
+        of.close();
+        impl.reset(new FileSource(tmpFilePath));
+    }
+
+    ~FileSourceWrapper()
+    {
+        try
+        {
+            std::filesystem::remove(tmpFilePath);
+        } catch(...) {}
+    }
+
+    std::size_t GetContentLength() const noexcept
+    {
+        return impl->GetContentLength();
+    }
+
+    void Read(std::size_t pos, std::span<std::byte> buf)
+    {
+        return impl->Read(pos, buf);
+    }
+};
+
 struct CachedSourceWrapper
 {
     CachedSource<MemoryViewSource> impl{gDefaultSource};
@@ -433,6 +493,7 @@ struct CachedSourceWrapper
 
 using SourceTypes = ::testing::Types<HttpSourceWrapper,
                                      MemoryViewSourceWrapper,
+                                     FileSourceWrapper,
                                      CachedSourceWrapper>;
 TYPED_TEST_SUITE(SourceTestF, SourceTypes);
 
@@ -468,6 +529,31 @@ TYPED_TEST(SourceTestF, ReadingFull)
     auto buf = std::string(gContent.size(), '\0');
     TypeParam{}.Read(0, std::as_writable_bytes(std::span<char>{buf}));
     ASSERT_EQ(gContent, buf);
+}
+
+TYPED_TEST(SourceTestF, RandomAccessReads)
+{
+    if(gContent.size() < 8)
+    {
+        FAIL();
+    }
+
+    auto half = gContent.size() / 2;
+    auto quarter = gContent.size() / 4;
+    auto eighth = gContent.size() / 8;
+
+    auto buf = std::string(half, '\0');
+    auto span = std::as_writable_bytes(std::span<char>{buf});
+    auto source = CachedSource{gDefaultSource, 0, half};
+
+    source.Read(quarter, span);
+    ASSERT_EQ(gContent.substr(quarter, half), buf);
+
+    source.Read(half, span);
+    ASSERT_EQ(gContent.substr(half, half), buf);
+
+    source.Read(eighth, span);
+    ASSERT_EQ(gContent.substr(eighth, half), buf);
 }
 
 }//unnamed namespace

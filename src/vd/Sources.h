@@ -12,8 +12,10 @@
 #include <concepts>
 #include <list>
 #include <mutex>
+#include <fstream>
 #include <span>
 #include <string>
+#include <filesystem>
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
@@ -85,11 +87,33 @@ public:
     explicit MemoryViewSource(std::span<const std::byte> buf = {});
 
     std::size_t GetContentLength() const noexcept;
-    //Reading zero bytes performs no operation and returns immediately
     void Read(std::size_t pos, std::span<std::byte> buf);
 
 private:
     std::span<const std::byte> mBuf;
+};
+
+
+
+//File size is cached in constructor, shared access to underlying file
+//is not supposed to happen, there will be issues
+class FileSource final
+{
+public:
+    explicit FileSource(const std::filesystem::path &path);
+
+    FileSource(const FileSource &) = delete;
+    FileSource &operator=(const FileSource &) = delete;
+    FileSource(FileSource &&) = default;
+    FileSource &operator=(FileSource &&) = default;
+
+    std::size_t GetContentLength() const noexcept;
+    void Read(std::size_t pos, std::span<std::byte> buf);
+
+private:
+    std::ifstream mFile;
+    std::size_t mSize;
+    std::ifstream::pos_type mStart;
 };
 
 

@@ -203,4 +203,57 @@ void MemoryViewSource::Read(std::size_t pos, std::span<std::byte> buf)
     std::memcpy(buf.data(), mBuf.data() + pos, buf.size_bytes());
 }
 
+
+
+//It's not clear if all this trickery with tellg/ignore is really needed,
+//but it looks like most correct way to deal with ifstream
+FileSource::FileSource(const std::filesystem::path &path)
+{
+    mFile.open(path, std::ios_base::in | std::ios_base::binary);
+    if(!mFile)
+    {
+        throw Error{Format(R"(failed to open file "{}")", path.string())};
+    }
+
+    try
+    {
+        mStart = mFile.tellg();
+        mSize = IntCast<decltype(mSize)>(std::filesystem::file_size(path));
+    }
+    catch(std::exception &e)
+    {
+        throw Error{Format(R"(failed to read file "{}": "{}")", path.string(), std::string{e.what()})};
+    }
+}
+
+std::size_t FileSource::GetContentLength() const noexcept
+{
+    return mSize;
+}
+
+void FileSource::Read(std::size_t pos, std::span<std::byte> buf)
+{
+    if(buf.size_bytes() == 0)
+    {
+        return;
+    }
+
+    internal::AssertRangeCorrect(pos, buf, GetContentLength());
+
+    try
+    {
+        mFile.seekg(mStart);
+        mFile.ignore(IntCast<std::streamsize>(pos));
+        mFile.read(reinterpret_cast<char *>(buf.data()), IntCast<std::streamsize>(buf.size_bytes()));
+        if(!mFile)
+        {
+            throw std::exception{};
+        }
+    }
+    catch(std::exception &e)
+    {
+        throw Error{Format(R"(failed to read file: "{}")", std::string{e.what()})};
+    }
+}
+
 } //namespace vd

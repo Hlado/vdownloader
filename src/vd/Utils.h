@@ -460,6 +460,12 @@ constexpr T EndianCastFrom(T val)
 
 
 
+template <typename... Args>
+std::string Format(std::string_view fstr, Args &&... args)
+{
+    return std::vformat(fstr, std::make_format_args(args...));
+}
+
 template <typename CharT,
           typename... Args,
           class Traits = std::char_traits<CharT>>
@@ -467,7 +473,7 @@ void PrintfTo(std::basic_ostream<CharT, Traits> &os,
               std::string_view fstr,
               Args &&... args)
 {
-    os << std::vformat(fstr, std::make_format_args(args...)) << std::flush;
+    os << Format(fstr, std::forward<Args>(args)...) << std::flush;
 }
 
 template <typename... Args>

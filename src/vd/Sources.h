@@ -126,7 +126,6 @@ class CachedSource final
 public:
     static const std::size_t cDefaultChunkSize = 1 << 19;
 
-    
     explicit CachedSource(SourceT source,
                           std::size_t maxChunks = 1,
                           std::size_t chunkSize = cDefaultChunkSize);
@@ -299,12 +298,13 @@ public:
 
 private:
     SourceT mSrc;
-    mutable std::mutex mMutex;
+    mutable std::unique_ptr<std::mutex> mMutex;
 };
 
 template <SourceConcept SourceT>
 ThreadSafeSource<SourceT>::ThreadSafeSource(SourceT source)
-    : mSrc{std::move(source)}
+    : mSrc{std::move(source)},
+      mMutex{new std::mutex()}
 {
 
 }
@@ -312,14 +312,14 @@ ThreadSafeSource<SourceT>::ThreadSafeSource(SourceT source)
 template <SourceConcept SourceT>
 std::size_t ThreadSafeSource<SourceT>::GetContentLength() const
 {
-    auto lock = std::lock_guard{mMutex};
+    auto lock = std::lock_guard{*mMutex};
     return mSrc.GetContentLength();
 }
 
 template <SourceConcept SourceT>
 void ThreadSafeSource<SourceT>::Read(std::size_t pos, std::span<std::byte> buf)
 {
-    auto lock = std::lock_guard{mMutex};
+    auto lock = std::lock_guard{*mMutex};
     return mSrc.Read(pos, buf);
 }
 

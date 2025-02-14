@@ -203,7 +203,7 @@ std::optional<LibavH264Decoder::DecodedImage>
     auto frame = std::move(mReadyFrames.front());
     mReadyFrames.pop_front();
 
-    std::weak_ptr<std::vector<FramePointer>> pool;
+    std::weak_ptr<std::vector<FramePointer>> pool(mFramesPool);
     DecodedImage res{
         std::move(frame),
         [pool](FramePointer &&frame)

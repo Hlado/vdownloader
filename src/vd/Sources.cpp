@@ -256,4 +256,16 @@ void FileSource::Read(std::size_t pos, std::span<std::byte> buf)
     }
 }
 
+
+
+std::size_t SourceBase::GetContentLength() const
+{
+    return GetContentLengthOverride();
+}
+
+void SourceBase::Read(std::size_t pos, std::span<std::byte> buf)
+{
+    return ReadOverride(pos, buf);
+}
+
 } //namespace vd

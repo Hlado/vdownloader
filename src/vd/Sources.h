@@ -323,6 +323,61 @@ void ThreadSafeSource<SourceT>::Read(std::size_t pos, std::span<std::byte> buf)
     return mSrc.Read(pos, buf);
 }
 
+
+
+class SourceBase
+{
+public:
+    virtual ~SourceBase() = default;
+
+    std::size_t GetContentLength() const;
+    void Read(std::size_t pos, std::span<std::byte> buf);
+
+protected:
+    virtual std::size_t GetContentLengthOverride() const = 0;
+    virtual void ReadOverride(std::size_t pos, std::span<std::byte> buf) = 0;
+};
+
+template <SourceConcept SourceT>
+class Source final : public SourceBase
+{
+public:
+    explicit Source(SourceT source);
+
+    Source(const Source &) = delete;
+    Source &operator=(const Source &) = delete;
+    Source(Source &&) = default;
+    Source &operator=(Source &&) = default;
+
+    ~Source() override = default;
+
+protected:
+    virtual std::size_t GetContentLengthOverride() const override;
+    virtual void ReadOverride(std::size_t pos, std::span<std::byte> buf) override;
+
+private:
+    SourceT mSrc;
+};
+
+template <SourceConcept SourceT>
+Source<SourceT>::Source(SourceT source)
+    : mSrc{std::move(source)}
+{
+
+}
+
+template <SourceConcept SourceT>
+std::size_t Source<SourceT>::GetContentLengthOverride() const
+{
+    return mSrc.GetContentLength();
+}
+
+template <SourceConcept SourceT>
+void Source<SourceT>::ReadOverride(std::size_t pos, std::span<std::byte> buf)
+{
+    mSrc.Read(pos, buf);
+}
+
 } //namespace vd
 
 #endif //VDOWNLOADER_VD_SOURCES_H_

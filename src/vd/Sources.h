@@ -119,6 +119,7 @@ private:
 
 
 //Wrapper for buffering read operations on sources.
+//It is thread safe natively also.
 //MaxChunks parameter sets maximum amount of cached chunks (unlimited if 0)
 template <SourceConcept SourceT>
 class CachedSource final
@@ -135,8 +136,8 @@ public:
     CachedSource &operator=(CachedSource &&) = default;
     ~CachedSource() = default;
 
-    std::size_t NumCachedChunks() const noexcept;
-    std::size_t GetContentLength() const noexcept(noexcept(mSrc.GetContentLength()));
+    std::size_t NumCachedChunks() const;
+    std::size_t GetContentLength() const;
     //Reading zero bytes performs no operation and returns immediately
     void Read(std::size_t pos, std::span<std::byte> buf);
 
@@ -146,7 +147,7 @@ private:
     struct Entry
     {
         std::size_t id;
-        Chunk chunk;
+        std::shared_ptr<Chunk> chunk;
     };
 
     using Entries = std::list<Entry>;
@@ -155,14 +156,16 @@ private:
     SourceT mSrc;
     Index mIndex;
     Entries mEntries;
+    mutable std::unique_ptr<std::mutex> mSrcMtx;
+    mutable std::unique_ptr<std::mutex> mCacheMtx;
     const std::size_t mMaxChunks;
     const std::size_t mChunkSize;
 
     std::size_t GetChunkId(std::size_t pos) const noexcept;
-    Chunk &GetChunk(std::size_t id);
+    std::shared_ptr<Chunk> GetChunk(std::size_t id);
     //In case of exception oldest chunk may be discarded but new chunk won't be inserted into cache
-    Chunk &CacheChunk(std::size_t id);
-    Chunk ReadChunk(std::size_t id);
+    std::shared_ptr<Chunk> CacheChunk(std::size_t id);
+    std::shared_ptr<Chunk> ReadChunk(std::size_t id);
     //Precondition: at least 1 item is in cache
     void DiscardOldestChunk() noexcept;
 };
@@ -172,6 +175,8 @@ CachedSource<SourceT>::CachedSource(SourceT source,
                                     std::size_t maxChunks,
                                     std::size_t chunkSize)
     : mSrc{std::move(source)},
+      mSrcMtx{std::make_unique<std::mutex>()},
+      mCacheMtx{std::make_unique<std::mutex>()},
       mMaxChunks{maxChunks},
       mChunkSize{chunkSize}
 {
@@ -182,32 +187,41 @@ CachedSource<SourceT>::CachedSource(SourceT source,
 }
 
 template <SourceConcept SourceT>
-std::size_t CachedSource<SourceT>::NumCachedChunks() const noexcept
+std::size_t CachedSource<SourceT>::NumCachedChunks() const
 {
+    std::lock_guard lock(*mCacheMtx);
     return mIndex.size();
 }
 
 template <SourceConcept SourceT>
-std::size_t CachedSource<SourceT>::GetContentLength() const noexcept(noexcept(mSrc.GetContentLength()))
+std::size_t CachedSource<SourceT>::GetContentLength() const
 {
+    std::lock_guard lock(*mSrcMtx);
     return mSrc.GetContentLength();
 }
 
 template <SourceConcept SourceT>
 void CachedSource<SourceT>::Read(std::size_t pos, std::span<std::byte> buf)
 {
-    internal::AssertRangeCorrect(pos, buf, GetContentLength());
+    //We can't afford this, it will kill performance because of lock on source,
+    //underlying source must also check range so it's not a problem
+    //internal::AssertRangeCorrect(pos, buf, GetContentLength());
 
     auto remainder = buf.size_bytes();
     auto outPtr = buf.data();
     auto chunkId = GetChunkId(pos);
     while(remainder > 0)
     {
-        const auto &chunk = GetChunk(chunkId);
+        auto chunk = GetChunk(chunkId);
 
         auto offset = pos - (chunkId * mChunkSize);
         auto len = std::min(remainder, mChunkSize - offset);
-        std::memcpy(outPtr, std::next(chunk.data(), offset), len);
+
+        //This check is needed because we disabled initial check but
+        //last chunk may be shorter than others and need special care
+        internal::AssertRangeCorrect(offset, std::span{(std::byte *)0, len}, chunk->size());
+
+        std::memcpy(outPtr, std::next(chunk->data(), offset), len);
 
         std::advance(outPtr, len);
         remainder -= len;
@@ -223,51 +237,81 @@ std::size_t CachedSource<SourceT>::GetChunkId(std::size_t pos) const noexcept
 }
 
 template <SourceConcept SourceT>
-CachedSource<SourceT>::Chunk &CachedSource<SourceT>::GetChunk(std::size_t id)
+std::shared_ptr<typename CachedSource<SourceT>::Chunk>
+    CachedSource<SourceT>::GetChunk(std::size_t id)
 {
-    auto indexIt = mIndex.find(id);
-    if(indexIt != mIndex.end())
     {
-        mEntries.splice(mEntries.end(), mEntries, indexIt->second);
-        return indexIt->second->chunk;
-    } else {
-        return CacheChunk(id);
+        std::lock_guard lock(*mCacheMtx);
+
+        auto indexIt = mIndex.find(id);
+        if(indexIt != mIndex.end())
+        {
+            mEntries.splice(mEntries.end(), mEntries, indexIt->second);
+            return indexIt->second->chunk;
+        }
     }
+
+    return CacheChunk(id);
 }
 
 template <SourceConcept SourceT>
-CachedSource<SourceT>::Chunk &CachedSource<SourceT>::CacheChunk(std::size_t id)
+std::shared_ptr<typename CachedSource<SourceT>::Chunk>
+    CachedSource<SourceT>::CacheChunk(std::size_t id)
 {
+    //double caching
     auto chunk = ReadChunk(id);
 
-    if(mMaxChunks != 0 && !(mIndex.size() < mMaxChunks))
     {
-        DiscardOldestChunk();
-    }
-    
-    mEntries.push_back(Entry{.id = id, .chunk = std::move(chunk)});
-    try
-    {
-        mIndex.insert(std::make_pair(id, std::prev(mEntries.end())));
-    }
-    catch(...)
-    {
-        static_assert(noexcept(mEntries.pop_back()));
-        mEntries.pop_back();
-        throw;
+        std::lock_guard lock(*mCacheMtx);
+
+        //Someone else could put chunk into cache while we were reading,
+        //so we have to check again
+        auto indexIt = mIndex.find(id);
+        if(indexIt != mIndex.end())
+        {
+            return chunk;
+        }
+
+        if(mMaxChunks != 0 && !(mIndex.size() < mMaxChunks))
+        {
+            DiscardOldestChunk();
+        }
+
+        mEntries.push_back(Entry{.id = id, .chunk = chunk});
+        try
+        {
+            mIndex.insert(std::make_pair(id, std::prev(mEntries.end())));
+        }
+        catch(...)
+        {
+            static_assert(noexcept(mEntries.pop_back()));
+            mEntries.pop_back();
+            throw;
+        }
     }
 
-    return mEntries.back().chunk;
+    return chunk;
 }
 
 template <SourceConcept SourceT>
-CachedSource<SourceT>::Chunk CachedSource<SourceT>::ReadChunk(std::size_t id)
+std::shared_ptr<typename CachedSource<SourceT>::Chunk>
+    CachedSource<SourceT>::ReadChunk(std::size_t id)
 {
-    Chunk ret(mChunkSize);
     auto offset = id * mChunkSize;
+    
+    //GetContentLength() is thread safe already, no lock is needed
     auto len = std::min(mChunkSize, GetContentLength() - offset);
-    auto span = std::span<std::byte>{ret.data(), len};
-    mSrc.Read(offset, span);
+    
+    //It's essential that last chunk has exact size and not just mChunkSize
+    //because range check depends on it
+    auto ret = std::make_shared<Chunk>(len);
+    auto span = std::span<std::byte>{ret->data(), len};
+
+    {
+        std::lock_guard lock(*mSrcMtx);
+        mSrc.Read(offset, span);
+    }
+
     return ret;
 }
 

@@ -12,6 +12,7 @@
 
 
 using namespace vd;
+using namespace vd::literals;
 using namespace testing;
 using namespace std::chrono_literals;
 
@@ -277,6 +278,148 @@ TEST(CachedSourceTests, DiscardsLeastUsed)
     ASSERT_EQ(2, source.NumCachedChunks());
     source.Read(10, buf);
     ASSERT_EQ(2, source.NumCachedChunks());
+}
+
+//Test case based on issue accidentally found by other generic test
+TEST(CachedSourceTests, ReadingPastEndOfAlreadyCachedChunk)
+{
+    auto src = CachedSource{MemoryViewSource{gContentSpan}, 1, gContent.size() + 1};
+    std::byte b;
+    auto buf = std::span(&b, 1);
+
+    ASSERT_THROW(src.Read(gContent.size(), buf), RangeError);
+    src.Read(0, buf);
+    ASSERT_THROW(src.Read(gContent.size(), buf), RangeError);
+}
+
+TEST(CachedSourceThreadSafetyTests, SimultaneousCachingSingleChunk)
+{
+    //Basic scenario is that we start two threads that would read different
+    //data, ensure spriority for first thread and then check that both reads
+    //have taken place but cached result is equal to first read.
+
+    auto wrapper = MockSourceWrapper{};
+    auto mock = wrapper.impl.get();
+    auto src = CachedSource{std::move(wrapper), 0, 1};
+
+    auto mtx = std::mutex{};
+    auto cv = std::condition_variable{};
+    bool thread1Reading = false;
+
+    auto read1 =
+        [&mtx, &cv, &thread1Reading](auto, auto buf)
+        {
+            //If we are here, it means that thread 1 has obtained
+            //read lock and we can allow thread 2 to read too   
+            {
+                std::lock_guard lock(mtx);
+                thread1Reading = true;
+            }
+            cv.notify_one();
+
+            //Now best we can do is some reasonable waiting, because
+            //there is no way to know that thread 2 has started reading
+            std::this_thread::sleep_for(250ms);
+
+            buf[0] = 1_b;
+        };
+
+    auto read2 = [](auto, auto buf) { buf[0] = 2_b; };
+
+    EXPECT_CALL(*mock, Read)
+        .WillOnce(read1)
+        .WillOnce(read2);
+    EXPECT_CALL(*mock, GetContentLength)
+        .WillRepeatedly([]() { return gContent.size(); });
+
+    auto t1Byte = std::byte{};
+    auto t1Buf = std::span(&t1Byte, 1);
+    auto t2Byte = std::byte{};
+    auto t2Buf = std::span(&t2Byte, 1);
+
+    std::thread t1(
+        [&mtx, &cv, &thread1Reading, &src, t1Buf]()
+        {
+            src.Read(0, t1Buf);
+        });
+
+    std::thread t2(
+        [&mtx, &cv, &thread1Reading, &src, t2Buf]()
+        {
+            {
+                std::unique_lock lock(mtx);
+                cv.wait(lock, [&thread1Reading]{ return thread1Reading; });
+            }
+
+            src.Read(0, t2Buf);
+        });
+
+    t1.join();
+    t2.join();
+
+    ASSERT_EQ(1_b, t1Byte);
+    ASSERT_EQ(2_b, t2Byte);
+    ASSERT_EQ(1, src.NumCachedChunks());
+
+    auto controlByte = std::byte{0};
+    src.Read(0, std::span(&controlByte, 1));
+    ASSERT_EQ(1_b, controlByte);
+}
+
+TEST(CachedSourceThreadSafetyTests, CachedReadsDontWait)
+{
+    auto wrapper = MockSourceWrapper{};
+    auto mock = wrapper.impl.get();
+    auto src = CachedSource{std::move(wrapper), 0, 1};
+
+    EXPECT_CALL(*mock, Read)
+        .WillOnce([](auto, auto buf) { buf[0] = 123_b; });
+    EXPECT_CALL(*mock, GetContentLength)
+        .WillRepeatedly([]() { return gContent.size(); });
+
+    auto controlByte = std::byte{0};
+    src.Read(0, std::span(&controlByte, 1));
+    ASSERT_EQ(123_b, controlByte);
+
+    //Plan is to initiate reading other chunk and sleep inside,
+    //because it must be protected by global (among all kind of
+    //source access) lock and then read few times already cached
+    //first chunk
+   
+    EXPECT_CALL(*mock, Read)
+        .WillOnce(
+            [](auto, auto buf)
+            {
+                //We don't want deadlock in case of bugs,
+                //so just good old delay
+                std::this_thread::sleep_for(250ms);
+
+                buf[0] = 234_b;
+            });
+
+    ASSERT_EQ(1, src.NumCachedChunks());
+
+    std::thread t(
+        [&src]()
+        {
+            auto discard = std::byte{0};
+            src.Read(1, std::span(&discard, 1));
+        });
+
+    //Few cached reads
+    for(std::size_t i = 0; i < 10; ++i)
+    {
+        src.Read(0, std::span(&controlByte, 1));
+    }
+
+    //If thread t isn't finished yet, there must be only one cached chunk
+    ASSERT_EQ(1, src.NumCachedChunks());
+
+    t.join();
+
+    ASSERT_EQ(2, src.NumCachedChunks());
+    src.Read(1, std::span(&controlByte, 1));
+    ASSERT_EQ(234_b, controlByte);
 }
 
 

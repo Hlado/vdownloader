@@ -205,6 +205,8 @@ void MemoryViewSource::Read(std::size_t pos, std::span<std::byte> buf)
 
 
 
+std::atomic<std::size_t> counterr;
+
 //It's not clear if all this trickery with tellg/ignore is really needed,
 //but it looks like most correct way to deal with ifstream
 FileSource::FileSource(const std::filesystem::path &path)
@@ -233,6 +235,8 @@ std::size_t FileSource::GetContentLength() const noexcept
 
 void FileSource::Read(std::size_t pos, std::span<std::byte> buf)
 {
+    counterr.fetch_add(buf.size());
+
     if(buf.size_bytes() == 0)
     {
         return;

@@ -7,12 +7,14 @@
 #include <chrono>
 #include <concepts>
 #include <cstdint>
+#include <deque>
 #include <format>
 #include <functional>
 #include <iostream>
 #include <limits>
 #include <memory>
 #include <optional>
+#include <queue>
 #include <ranges>
 #include <span>
 #include <utility>
@@ -560,6 +562,106 @@ void Discard(const T &)
 
 //Returns 1 if failed to get actual number
 unsigned int GetNumCores() noexcept;
+
+
+
+template<typename T, typename ContainerT = std::deque<T>>
+class DiscardingQueue
+{
+public:
+    //Just regular FIFO queue if capacity is 0
+    explicit DiscardingQueue(std::size_t capacity = 0, ContainerT container = ContainerT{});
+
+    std::size_t Capacity() const noexcept;
+    std::size_t Size() const;
+    bool Empty() const;
+    void Clear ();
+    void Push(T val);
+    void Pop();
+    const T &First() const;
+    T &First();
+    const std::queue<T, ContainerT> &BaseQueue() const noexcept;
+
+private:
+    std::queue<T, ContainerT> mQueue;
+    std::size_t mCapacity;
+};
+
+template<typename T, typename ContainerT>
+DiscardingQueue<T, ContainerT>::DiscardingQueue(std::size_t capacity, ContainerT container)
+    : mQueue(std::move(container)),
+      mCapacity(capacity)
+{
+
+}
+
+template<typename T, typename ContainerT>
+std::size_t DiscardingQueue<T, ContainerT>::Capacity() const noexcept
+{
+    return mCapacity;
+}
+
+template<typename T, typename ContainerT>
+std::size_t DiscardingQueue<T, ContainerT>::Size() const
+{
+    return mQueue.size();
+}
+
+template<typename T, typename ContainerT>
+bool DiscardingQueue<T, ContainerT>::Empty() const
+{
+    return Size() == 0;
+}
+
+
+template<typename T, typename ContainerT>
+void DiscardingQueue<T, ContainerT>::Clear()
+{
+    mQueue = {};
+}
+
+template<typename T, typename ContainerT>
+void DiscardingQueue<T, ContainerT>::Push(T val)
+{
+    if(Size() > 0 && Size() == mCapacity)
+    {
+        Pop();
+    }
+
+    mQueue.push(std::move(val));
+}
+
+template<typename T, typename ContainerT>
+void DiscardingQueue<T, ContainerT>::Pop()
+{
+    if(Size() > 0)
+    {
+        mQueue.pop();
+    }
+}
+
+template<typename T, typename ContainerT>
+const T &DiscardingQueue<T, ContainerT>::First() const
+{
+    return const_cast<DiscardingQueue<T, ContainerT> *>(this)->First();
+}
+
+template<typename T, typename ContainerT>
+T &DiscardingQueue<T, ContainerT>::First()
+{
+    if(Size() == 0)
+    {
+        throw vd::NotFoundError{"queue is empty"};
+    }
+
+    return mQueue.front();
+}
+
+template<typename T, typename ContainerT>
+const std::queue<T, ContainerT> &DiscardingQueue<T, ContainerT>::BaseQueue() const noexcept
+{
+    return mQueue;
+}
 
 }//namespace vd
 

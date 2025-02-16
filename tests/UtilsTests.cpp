@@ -305,4 +305,78 @@ TEST(StdDurationConcept, Test)
     ASSERT_FALSE(StdDurationConcept<std::string>);
 }
 
+TEST(DiscardingQueueTests, CapacityCheck)
+{
+    auto queue = DiscardingQueue<int>{};
+    ASSERT_EQ(0, queue.Capacity());
+
+    for(int i = 0; i < 1000; ++i)
+    {
+        queue.Push(i);
+    }
+    ASSERT_EQ(1000, queue.Size());
+
+    queue = DiscardingQueue<int>{2};
+    ASSERT_EQ(2, queue.Capacity());
+
+    for(int i = 0; i < 10; ++i)
+    {
+        queue.Push(i);
+    }
+    ASSERT_EQ(2, queue.Size());
+}
+
+TEST(DiscardingQueueTests, EmptyAccess)
+{
+    auto queue = DiscardingQueue<int>{};
+
+    ASSERT_EQ(0, queue.Size());
+    ASSERT_TRUE(queue.Empty());
+    ASSERT_NO_THROW(queue.Pop());
+    ASSERT_THROW(queue.First(), NotFoundError);
+}
+
+TEST(DiscardingQueueTests, Clearing)
+{
+    auto queue = DiscardingQueue<int>{};
+
+    for(int i = 0; i < 10; ++i)
+    {
+        queue.Push(i);
+    }
+    ASSERT_EQ(10, queue.Size());
+
+    queue.Clear();
+    ASSERT_EQ(0, queue.Size());
+}
+
+TEST(DiscardingQueueTests, NormalUsage)
+{
+    auto queue = DiscardingQueue<int>{2};
+
+    queue.Push(0);
+    ASSERT_FALSE(queue.Empty());
+    ASSERT_EQ(1, queue.Size());
+    ASSERT_EQ(0, queue.First());
+
+    queue.Push(1);
+    ASSERT_FALSE(queue.Empty());
+    ASSERT_EQ(2, queue.Size());
+    ASSERT_EQ(0, queue.First());
+
+    queue.Push(2);
+    ASSERT_FALSE(queue.Empty());
+    ASSERT_EQ(2, queue.Size());
+    ASSERT_EQ(1, queue.First());
+
+    queue.Pop();
+    ASSERT_FALSE(queue.Empty());
+    ASSERT_EQ(1, queue.Size());
+    ASSERT_EQ(2, queue.First());
+
+    queue.Pop();
+    ASSERT_TRUE(queue.Empty());
+    ASSERT_EQ(0, queue.Size());
+}
+
 }//unnamed namespace

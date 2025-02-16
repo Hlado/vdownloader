@@ -1,6 +1,3 @@
-[submodule "3rdparty/Bento4"]
-	path = 3rdparty/Bento4
-	url = https://github.com/Hlado/Bento4.git
 [submodule "3rdparty/args"]
 	path = 3rdparty/args
 	url = https://github.com/Taywee/args.git

@@ -1,8 +1,6 @@
-#include <vd/Ap4ByteStream.h>  
-#include <vd/Mp4Container.h>
-#include <vd/Decoder.h>
 #include <vd/Options.h>
 #include <vd/Tga.h>
+#include <vd/VideoStream.h>
 
 #include <libyuv.h>
 
@@ -16,29 +14,31 @@ using namespace vd;
 namespace
 {
 
-using Decoder = DecoderLibav;
-using SerialDecoder = SerialDecoderBase<Decoder>;
-
-
-
-const std::size_t gNumCachedChunks = 2;
-const int gDefaultNumDecoderThreads = 2;
-
-std::shared_ptr<AP4_ByteStream> OpenSource(const std::string &url, std::size_t chunkSize)
+template <SourceConcept SourceT>
+std::shared_ptr<SourceBase> MakeSource(const std::string &url,
+                                       std::size_t numChunks,
+                                       std::size_t chunkSize)
 {
-    std::shared_ptr<AP4_ByteStream> res;
+    return
+        std::shared_ptr<SourceBase>{
+            new Source{
+                CachedSource{
+                    SourceT{url}, numChunks, chunkSize}}};
+}
+
+std::shared_ptr<SourceBase> OpenSource(const std::string &url,
+                                       std::size_t numChunks,
+                                       std::size_t chunkSize)
+{
+    std::shared_ptr<SourceBase> res;
 
     try
     {
-        res = std::make_shared<Ap4HttpByteStream>(CachedSource{HttpSource{url}, gNumCachedChunks, chunkSize});
+        res = MakeSource<HttpSource>(url, numChunks, chunkSize);
     }
     catch(...)
     {
-        auto err = AP4_FileByteStream::Create(url.c_str(), AP4_FileByteStream::STREAM_MODE_READ, res);
-        if(AP4_FAILED(err))
-        {
-            throw Error{std::format(R"(Unable to open video source "{}")", url)};
-        }
+        res = MakeSource<FileSource>(url, numChunks, chunkSize);
     }
 
     return res;
@@ -54,98 +54,51 @@ std::string ToString(const std::chrono::duration<RepT, PeriodT> &val)
     return std::format("{}s{}ms", s.count(), ms.count());
 }
 
-SerialDecoder MakeDecoder(std::vector<vd::Segment> segments, const vd::DecodingConfig &config, std::uint8_t numThreads)
-{
-    auto decoders = std::vector<Decoder>{};
-    for(auto &segment : segments)
-    {
-        decoders.emplace_back(config, std::move(segment), LibavH264Decoder{numThreads});
-    }
-    return SerialDecoder(std::move(decoders));
-}
-
-int PickNumDecoderThreads(std::uint8_t base, const std::atomic<int> &numActiveThreads) noexcept
-{
-    if(base != 0)
-    {
-        return IntCast<int>(base);
-    }
-
-    auto numAvailableThreads = IntCast<int>(GetNumCores()) - numActiveThreads.load();
-    if(numAvailableThreads <= 0)
-    {
-        return gDefaultNumDecoderThreads;
-    }
-    else
-    {
-        return numAvailableThreads + 1;
-    }
-}
 
 
-
-using FrameHandler = std::function<void(const ArgbImage &,std::chrono::nanoseconds,std::size_t)>;
-using Semaphore = std::counting_semaphore<std::numeric_limits<decltype(Options::numThreads)>::max()>;
+using FrameHandler =
+    std::function<void(const ArgbImage &, std::chrono::nanoseconds, std::size_t)>;
+using Semaphore =
+    std::counting_semaphore<std::numeric_limits<decltype(Options::numThreads)>::max()>;
 
 struct ThreadContext final
 {
-    std::vector<vd::Segment> videoSegments;
-    vd::DecodingConfig config;
+    std::shared_ptr<SourceBase> source;
     Semaphore &semaphore;
-    std::atomic<int> &numActiveThreads;
     Options::Segment range;
-    std::uint8_t numDecoderThreads;
 };
+
+
 
 void ForEachFrame(ThreadContext ctx, FrameHandler callback)
 {
     ctx.semaphore.acquire();
-    
-    auto numDecoderThreads = PickNumDecoderThreads(ctx.numDecoderThreads, ctx.numActiveThreads);
-    //There's a problem - in theory multiple decoding threads may perform these calculations simultaneously
-    //(although it's practically impossible), so in case of adaptive number of threads there will be some inaccuracy,
-    //but even then it's not a big mistake, so for simplicity we ignore it
-    ctx.numActiveThreads.fetch_add(numDecoderThreads);
+    auto releaseSemaphore = Defer([&ctx]() { ctx.semaphore.release(); });
 
-    try
-    {
-        auto decoder = MakeDecoder(std::move(ctx.videoSegments), ctx.config, IntCast<std::uint8_t>(numDecoderThreads));
-        auto interval = (ctx.range.to - ctx.range.from) / (ctx.range.numFrames + 1ll);
-
-        //== 0 is very extreme case but still possible
-        if(interval <= 0ns)
-        {
-            throw Error{std::format("too many frames ({}) requested in segment", ctx.range.numFrames)};
-        }
-
-        auto frame = decoder.GetNext().value();
-        for(std::int64_t i = 0; i < ctx.range.numFrames + 2ll; ++i)
-        {
-            //There will be some inaccuracy due to integer arithmetic, but we use ns, so it's too small to care about
-            std::chrono::nanoseconds timestamp = ctx.range.from + i*interval;
-            //It's to ensure that last frame taken is exactly as requested
-            if(i == ctx.range.numFrames + 1ll)
+    auto stream =
+        OpenMediaSource(
+            [&ctx]()
             {
-                timestamp = ctx.range.to;
-            }
+                return
+                    std::make_unique<LibavReader>(
+                        ctx.source,
+                        LibavReader::SeekSizeMode::Cache);
+            });
 
-            if(decoder.HasMore() && decoder.TimestampNext() <= timestamp)
-            {
-                decoder.SkipTo(timestamp);
-                frame = decoder.GetNext().value();
-            }
-
-            callback(frame.image, timestamp, i + 1ull);
-        }
-    }
-    catch(...)
+    auto interval = (ctx.range.to - ctx.range.from) / (ctx.range.numFrames + 1ll);
+    //== 0 is very extreme case but still possible
+    if(interval <= 0ns)
     {
-        ctx.numActiveThreads.fetch_sub(numDecoderThreads);
-        ctx.semaphore.release();
-        throw;
+        throw Error{std::format("too many frames ({}) requested in segment",
+                                ctx.range.numFrames)};
     }
-    ctx.numActiveThreads.fetch_sub(numDecoderThreads);
-    ctx.semaphore.release();
+
+    for(std::int64_t i = 0; i < ctx.range.numFrames + 2ll; ++i)
+    {
+        auto timestamp = ctx.range.from + i * interval;
+        auto frame = stream.NextFrame(timestamp).value();
+        callback(frame.Image(), timestamp, i + 1ull);
+    }
 }
 
 void SaveFrame(
@@ -156,9 +109,19 @@ void SaveFrame(
     std::size_t frameIndex)
 {
     auto timestampStr = ToString(timestamp);
-    auto pathStr = std::vformat(pathTemplate, std::make_format_args(segmentIndex, frameIndex, timestampStr));
-    auto path = std::filesystem::path(pathStr);
-    WriteTga(path, image.data, image.width);
+    auto pathStr =
+        std::vformat(pathTemplate,
+                     std::make_format_args(segmentIndex,
+                                           frameIndex,
+                                           timestampStr));
+    WriteTga(pathStr, image.data, image.width);
+}
+
+std::size_t EstimateNumChunks(std::size_t numThreads)
+{
+    //We want to keep starting chunk containing metadata and at least one chunk
+    //for each thread, so for safety we keep twice as much 
+    return numThreads*2 + 1;
 }
 
 }//unnamed namespace
@@ -168,7 +131,6 @@ void SaveFrame(
 int main(int argc, char *argv[])
 {
     auto semaphore = std::optional<Semaphore>{};
-    auto numActiveThreads = std::atomic<int>{0};
     auto futures = std::vector<std::future<void>>{};
     int err = 0;
 
@@ -181,7 +143,9 @@ int main(int argc, char *argv[])
         }
 
         semaphore.emplace(options->numThreads);
-        Mp4Container container(OpenSource(options->videoUrl, options->chunkSize));
+        auto source = OpenSource(options->videoUrl,
+                                 EstimateNumChunks(options->numThreads),
+                                 options->chunkSize);
 
         for(std::size_t segmentIndex = 0; auto &segment : options->segments)
         {
@@ -194,12 +158,9 @@ int main(int argc, char *argv[])
             auto future = std::async(
                 ForEachFrame,
                     ThreadContext{
-                        .videoSegments = container.GetTrack().Slice(segment.from, segment.to),
-                        .config = container.GetTrack().GetDecodingConfig(),
+                        .source = source,
                         .semaphore = *semaphore,
-                        .numActiveThreads = numActiveThreads,
-                        .range = segment,
-                        .numDecoderThreads = options->numDecoderThreads
+                        .range = segment
                     },
                     [format,segmentIndex](auto const &image, auto timestamp, auto index)
                     {

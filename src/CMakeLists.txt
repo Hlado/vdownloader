@@ -1,35 +1,25 @@
-set(SOURCE_FILES vd/Decoder.cpp
-                 vd/DecodingUtils.cpp
+set(SOURCE_FILES vd/DecodingUtils.cpp
                  vd/Errors.cpp
-                 vd/LibavH264Decoder.cpp
-                 vd/Mp4Container.cpp
-                 vd/Mp4Utils.cpp
+                 vd/LibavUtils.cpp
                  vd/Options.cpp
                  vd/Sources.cpp
                  vd/Tga.cpp
-                 vd/Track.cpp
-                 vd/Utils.cpp)
+                 vd/Utils.cpp
+                 vd/VideoStream.cpp)
 
-set(HEADER_FILES vd/Ap4ByteStream.h
-                 vd/Ap4Headers.h
-                 vd/Ap4Helpers.h
-                 vd/Decoder.h
-                 vd/DecodingUtils.h
+set(HEADER_FILES vd/DecodingUtils.h
                  vd/Errors.h
-                 vd/LibavH264Decoder.h
-                 vd/Mp4Container.h
-                 vd/Mp4Utils.h
+                 vd/LibavUtils.h
                  vd/Options.h
                  vd/Preprocessor.h
                  vd/Sources.h
                  vd/Tga.h
-                 vd/Track.h
-                 vd/Utils.h)
+                 vd/Utils.h
+                 vd/VideoStream.h)
 
 set(LIB_NAME ${PROJECT_NAME}lib)
 
 add_library(${LIB_NAME} STATIC ${SOURCE_FILES} ${HEADER_FILES})
-target_link_libraries(${LIB_NAME} PUBLIC ap4)
 target_link_libraries(${LIB_NAME} PUBLIC httplib::httplib)
 target_link_libraries(${LIB_NAME} PUBLIC yuv)
 target_link_libraries(${LIB_NAME} PUBLIC Poco::Foundation)

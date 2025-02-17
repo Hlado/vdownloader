@@ -36,9 +36,9 @@ namespace internal
 {
 
 void AssertRangeCorrect(
-    std::size_t pos, std::span<const std::byte> buf, std::size_t contentLength)
+    std::size_t pos, std::size_t bufSize, std::size_t contentLength)
 {
-    auto to = Add<std::size_t>(pos, buf.size_bytes());
+    auto to = Add<std::size_t>(pos, bufSize);
     if(to > contentLength)
     {
         throw RangeError{};
@@ -84,7 +84,7 @@ void HttpSource::Read(std::size_t pos, std::span<std::byte> buf)
         return;
     }
 
-    AssertRangeCorrect(pos, buf, GetContentLength());
+    AssertRangeCorrect(pos, buf.size_bytes(), GetContentLength());
 
     constexpr auto fromMax = std::numeric_limits<decltype(Range::first)>::max();
     constexpr auto toMax = std::numeric_limits<decltype(Range::second)>::max();
@@ -198,7 +198,7 @@ std::size_t MemoryViewSource::GetContentLength() const noexcept
 
 void MemoryViewSource::Read(std::size_t pos, std::span<std::byte> buf)
 {
-    AssertRangeCorrect(pos, buf, GetContentLength());
+    AssertRangeCorrect(pos, buf.size_bytes(), GetContentLength());
 
     std::memcpy(buf.data(), mBuf.data() + pos, buf.size_bytes());
 }
@@ -238,7 +238,7 @@ void FileSource::Read(std::size_t pos, std::span<std::byte> buf)
         return;
     }
 
-    internal::AssertRangeCorrect(pos, buf, GetContentLength());
+    internal::AssertRangeCorrect(pos, buf.size_bytes(), GetContentLength());
 
     try
     {

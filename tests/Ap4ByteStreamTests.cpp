@@ -37,7 +37,7 @@ public:
             return;
         }
 
-        vd::internal::AssertRangeCorrect(pos, buf, gContent.size());
+        vd::internal::AssertRangeCorrect(pos, buf.size_bytes(), gContent.size());
 
         std::memcpy(buf.data(), (std::byte *)std::next(gContent.data(), pos), buf.size_bytes());
     }

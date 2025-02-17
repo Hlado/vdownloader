@@ -38,7 +38,7 @@ namespace internal
 {
 
 void AssertRangeCorrect(
-    std::size_t pos, std::span<const std::byte> buf, std::size_t contentLength);
+    std::size_t pos, std::size_t bufSize, std::size_t contentLength);
 
 } //namespace internal
 
@@ -214,7 +214,7 @@ void CachedSource<SourceT>::Read(std::size_t pos, std::span<std::byte> buf)
 
         //This check is needed because we disabled initial check but
         //last chunk may be shorter than others and need special care
-        internal::AssertRangeCorrect(offset, std::span{(std::byte *)nullptr, len}, chunk->size());
+        internal::AssertRangeCorrect(offset, len, chunk->size());
 
         std::memcpy(outPtr, std::next(chunk->data(), offset), len);
 

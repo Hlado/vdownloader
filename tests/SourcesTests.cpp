@@ -294,9 +294,9 @@ TEST(CachedSourceTests, ReadingPastEndOfAlreadyCachedChunk)
 
 TEST(CachedSourceThreadSafetyTests, SimultaneousCachingSingleChunk)
 {
-    //Basic scenario is that we start two threads that would read different
-    //data, ensure spriority for first thread and then check that both reads
-    //have taken place but cached result is equal to first read.
+    //Basic scenario is that we start two threads, ensure priority for first
+    //thread and then check that read have taken place only once and there's
+    //only one cached chunk
 
     auto wrapper = MockSourceWrapper{};
     auto mock = wrapper.impl.get();
@@ -306,7 +306,7 @@ TEST(CachedSourceThreadSafetyTests, SimultaneousCachingSingleChunk)
     auto cv = std::condition_variable{};
     bool thread1Reading = false;
 
-    auto read1 =
+    auto read =
         [&mtx, &cv, &thread1Reading](auto, auto buf)
         {
             //If we are here, it means that thread 1 has obtained
@@ -324,11 +324,8 @@ TEST(CachedSourceThreadSafetyTests, SimultaneousCachingSingleChunk)
             buf[0] = 1_b;
         };
 
-    auto read2 = [](auto, auto buf) { buf[0] = 2_b; };
-
     EXPECT_CALL(*mock, Read)
-        .WillOnce(read1)
-        .WillOnce(read2);
+        .WillOnce(read);
     EXPECT_CALL(*mock, GetContentLength)
         .WillRepeatedly([]() { return gContent.size(); });
 
@@ -358,7 +355,7 @@ TEST(CachedSourceThreadSafetyTests, SimultaneousCachingSingleChunk)
     t2.join();
 
     ASSERT_EQ(1_b, t1Byte);
-    ASSERT_EQ(2_b, t2Byte);
+    ASSERT_EQ(1_b, t2Byte);
     ASSERT_EQ(1, src.NumCachedChunks());
 
     auto controlByte = std::byte{0};

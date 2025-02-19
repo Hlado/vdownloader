@@ -7,7 +7,7 @@ This is pet-project started for learning purposes, so don't expect any productio
 # Usage
 
 ***Vdownloader*** is an application to extract frames from local or remote (via http(s)) video files.
-Only single stream youtube mpeg-dash format is currently supported.
+First video stream of container will be used.
 
 Simple invocation may look like this:
 

@@ -129,7 +129,7 @@ std::optional<Options> ParseOptions(int argc, const char * const * argv)
     args::ValueFlag<int> threads(
         parser,
         "threads",
-        "Number of simultaneously decoded segments (=<number_of_cores> by default or when set to 0)",
+        "Number of simultaneously decoded segments (=<number_of_cores + 1> by default or when set to 0)",
         {'t',"threads"},
         0);
     args::Positional<std::string> source(parser, "source", "Video source (url/file)", args::Options::Required);
@@ -149,7 +149,7 @@ std::optional<Options> ParseOptions(int argc, const char * const * argv)
             numThreads = IntCast<std::uint8_t>(threads.Get());
             if(numThreads == 0)
             {
-                numThreads = IntCast<std::uint8_t>(GetNumCores());
+                numThreads = IntCast<std::uint8_t>(GetNumCores()  + 1);
             }
         }
         catch(...)

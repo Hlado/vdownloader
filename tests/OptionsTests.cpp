@@ -91,7 +91,7 @@ TEST(OptionsTests, Threads)
     ASSERT_TRUE(options);
     if(std::thread::hardware_concurrency() != 0)
     {
-        ASSERT_EQ(std::thread::hardware_concurrency(), options->numThreads);
+        ASSERT_EQ(std::thread::hardware_concurrency() + 1, options->numThreads);
     }
     else
     {
@@ -101,7 +101,7 @@ TEST(OptionsTests, Threads)
     auto argv2 = std::array{"app_path", "url", "1s500ms-2s300ms:22"};
     options = Parse(argv2);
     ASSERT_TRUE(options);
-    ASSERT_EQ(std::thread::hardware_concurrency(), options->numThreads);
+    ASSERT_EQ(std::thread::hardware_concurrency() + 1, options->numThreads);
 }
 
 TEST(OptionsTests, CorrectSegmentFull)

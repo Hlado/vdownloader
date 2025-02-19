@@ -7,6 +7,9 @@ set(${PROJECT_NAME}_BENCMARKING_URL "https://www.youtube.com/watch?v=aqz-KE-bpKQ
 set(${PROJECT_NAME}_BENCMARKING_YT_FORMAT 299 CACHE STRING "Format to request from youtube")
 set(${PROJECT_NAME}_BENCMARKING_RUNS 3 CACHE STRING "Number of runs")
 set(${PROJECT_NAME}_BENCMARKING_REFERENCE_PATH "$<TARGET_FILE:${PROJECT_NAME}>" CACHE FILEPATH "Path to reference version of app")
+set(${PROJECT_NAME}_BENCMARKING_REFERENCE_PATH "$<TARGET_FILE:${PROJECT_NAME}>" CACHE FILEPATH "Path to reference version of app")
+set(${PROJECT_NAME}_BENCMARKING_REFERENCE_ARGS "" CACHE STRING "Args for reference version of app")
+set(${PROJECT_NAME}_BENCMARKING_DEV_ARGS "" CACHE STRING "Args for dev version for single run or reference benchmark")
 
 #Ok, ideally, we want to benchmark release build only,
 #but it seems it can't be achieved without extensive work,
@@ -16,7 +19,11 @@ set(${PROJECT_NAME}_BENCMARKING_REFERENCE_PATH "$<TARGET_FILE:${PROJECT_NAME}>" 
 #but that's low priority improvement
 macro(benchmark target_name script_name comment)
     add_custom_target(${target_name}
-                      COMMAND python "\"${CMAKE_CURRENT_SOURCE_DIR}/${script_name}\"" "\"$<TARGET_FILE:${PROJECT_NAME}>\"" "\"${${PROJECT_NAME}_BENCMARKING_URL}\"" ${${PROJECT_NAME}_BENCMARKING_YT_FORMAT} ${${PROJECT_NAME}_BENCMARKING_RUNS}
+                      COMMAND python "\"${CMAKE_CURRENT_SOURCE_DIR}/${script_name}\""
+                                     "\"$<TARGET_FILE:${PROJECT_NAME}>\""
+                                     "\"${${PROJECT_NAME}_BENCMARKING_URL}\""
+                                     ${${PROJECT_NAME}_BENCMARKING_YT_FORMAT}
+                                     ${${PROJECT_NAME}_BENCMARKING_RUNS}
                       DEPENDS benchmarking_prep
                       WORKING_DIRECTORY ${WORKING_DIR}
                       COMMENT ${comment})
@@ -28,11 +35,34 @@ benchmark(benchmarking_ffmpeg_parallel ffmpeg_parallel_benchmark.py "Running ffm
 benchmark(benchmarking_threading threading_benchmark.py "Running threading benchmark")
 
 add_custom_target(benchmarking_reference
-                  COMMAND python "\"${CMAKE_CURRENT_SOURCE_DIR}/reference_benchmark.py\"" "\"$<TARGET_FILE:${PROJECT_NAME}>\"" "\"${${PROJECT_NAME}_BENCMARKING_REFERENCE_PATH}\"" "\"${${PROJECT_NAME}_BENCMARKING_URL}\"" ${${PROJECT_NAME}_BENCMARKING_YT_FORMAT} ${${PROJECT_NAME}_BENCMARKING_RUNS}
+                  COMMAND python "\"${CMAKE_CURRENT_SOURCE_DIR}/reference_benchmark.py\""
+                                 "\"$<TARGET_FILE:${PROJECT_NAME}>\""
+                                 "\"${${PROJECT_NAME}_BENCMARKING_REFERENCE_PATH}\""
+                                 "\"${${PROJECT_NAME}_BENCMARKING_URL}\""
+                                 ${${PROJECT_NAME}_BENCMARKING_YT_FORMAT}
+                                 ${${PROJECT_NAME}_BENCMARKING_RUNS}
+                                 "\"${${PROJECT_NAME}_BENCMARKING_REFERENCE_ARGS}\""
+                                 "\"${${PROJECT_NAME}_BENCMARKING_DEV_ARGS}\""
                   DEPENDS benchmarking_prep
                   WORKING_DIRECTORY ${WORKING_DIR}
                   COMMENT "Running reference benchmark")
 add_dependencies(benchmarking_reference ${PROJECT_NAME})
 
-set_target_properties(benchmarking_prep benchmarking_ffmpeg benchmarking_ffmpeg_parallel benchmarking_threading benchmarking_reference
+add_custom_target(benchmarking_single_run
+                  COMMAND python "\"${CMAKE_CURRENT_SOURCE_DIR}/single_run_benchmark.py\""
+                                 "\"$<TARGET_FILE:${PROJECT_NAME}>\""
+                                 "\"${${PROJECT_NAME}_BENCMARKING_URL}\""
+                                 ${${PROJECT_NAME}_BENCMARKING_YT_FORMAT}
+                                 "\"${${PROJECT_NAME}_BENCMARKING_DEV_ARGS}\""
+                  DEPENDS benchmarking_prep
+                  WORKING_DIRECTORY ${WORKING_DIR}
+                  COMMENT "Running single run benchmark")
+add_dependencies(benchmarking_reference ${PROJECT_NAME})
+
+set_target_properties(benchmarking_prep
+                      benchmarking_ffmpeg
+                      benchmarking_ffmpeg_parallel
+                      benchmarking_threading
+                      benchmarking_reference
+                      benchmarking_single_run
                       PROPERTIES FOLDER benchmarking)

@@ -1,8 +1,15 @@
 import os
 import pathlib
+import re
 import subprocess
 import urllib.parse
 
+def make_args(args_str):
+    clean_str = re.sub('\s+', ' ', args_str).strip()
+    if clean_str == "":
+        return []
+    return re.sub('\s+', ' ', args_str).strip().split(' ');
+    
 def vdownloader_command(path, url, options = []):
     return \
         f"\"{path}\" " + \

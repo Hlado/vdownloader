@@ -1,7 +1,7 @@
 #include "Sources.h"
 #include "Errors.h"
 
-#include <Poco/URI.h>
+#include <ada.h>
 
 #include <cstring>
 #include <functional>
@@ -11,26 +11,6 @@ using namespace httplib;
 
 namespace vd
 {
-
-namespace
-{
-
-std::string ExtractAddress(std::string_view url)
-{
-    auto parsed = Poco::URI{std::string{url}};
-
-    if(parsed.getScheme() != "http" &&
-       parsed.getScheme() != "https")
-    {
-        //Is term "HTTP resource" correct?
-        throw ArgumentError{std::format(R"("{}" is not an HTTP(S) resource address)", url)};
-    }
-
-    auto portSuffix = parsed.getPort() == 0 ? "" : ":" + std::to_string(parsed.getPort());
-    return parsed.getScheme() + "://" + parsed.getHost() + portSuffix;
-}
-
-} //unnamed namespace
 
 namespace internal
 {
@@ -43,6 +23,34 @@ void AssertRangeCorrect(
     {
         throw RangeError{};
     }
+}
+
+std::string_view ExtractAddress(std::string_view url)
+{
+    auto parsed = ada::parse(std::string{url});
+
+    //Although it's weird to have colon included in protocol, it's not ada's
+    //unique behaviour and google know other cases, so we leave it as is for now
+    if(parsed->get_protocol() != "http:" &&
+       parsed->get_protocol() != "https:")
+    {
+        //Is term "HTTP resource" correct?
+        throw ArgumentError{std::format(R"("{}" is not an HTTP(S) resource address)", url)};
+    }
+
+    return url.substr(0, parsed->get_components().pathname_start);
+}
+
+std::string_view ExtractPathAndQuery(std::string_view url)
+{
+    auto components = ada::parse(std::string{url})->get_components();
+    
+    if(components.pathname_start >= url.size())
+    {
+        return "/";
+    }
+
+    return url.substr(components.pathname_start);
 }
 
 }//namespace internal
@@ -123,8 +131,8 @@ httplib::Headers HttpSource::EstablishConnection(std::string url)
     //Not good if infinite redirection is possible
     while(true)
     {
-        mRequestStr = Poco::URI{url}.getPathAndQuery();
-        mHttpClient = std::make_unique<Client>(ExtractAddress(url));
+        mRequestStr = ExtractPathAndQuery(url);
+        mHttpClient = std::make_unique<Client>(std::string{ExtractAddress(url)});
         mHttpClient->set_keep_alive(true);
         mHttpClient->set_follow_location(true);
         auto requestRes = mHttpClient->Head(mRequestStr);

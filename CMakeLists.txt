@@ -7,9 +7,9 @@ include(CTest)
 
 set(BUILD_APPS OFF CACHE BOOL INTERNAL FORCE)
 
+find_package(ada CONFIG REQUIRED)
 find_package(httplib CONFIG REQUIRED)
 find_package(libyuv CONFIG REQUIRED)
-find_package(Poco REQUIRED COMPONENTS Foundation)
 find_package(FFMPEG REQUIRED)
 
 #We enforce warning intolerance only for our own code

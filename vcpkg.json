@@ -1,6 +1,10 @@
 {
   "dependencies": [
     {
+      "name": "ada-url",
+      "default-features": false
+    },
+    {
       "name": "cpp-httplib",
       "default-features": false,
       "features": [
@@ -20,12 +24,13 @@
     },
     {
       "name": "libyuv"
-    },
-    {
-      "name": "poco"
     }
   ],
   "overrides": [
+    {
+      "name": "ada-url",
+      "version": "2.9.2#0"
+    },
     {
       "name": "cpp-httplib",
       "version": "0.16.0#0"
@@ -41,11 +46,7 @@
     {
       "name": "libyuv",
       "version": "1857#1"
-    },
-    {
-      "name": "poco",
-      "version": "1.13.3"
     }
   ],
-  "builtin-baseline": "f523208df4ae467436dc2d2eeab594fed240d552"
+  "builtin-baseline": "0413db10ad778df118d55afc20c2da09fadee057"
 }

@@ -12,6 +12,7 @@
 
 
 using namespace vd;
+using namespace vd::internal;
 using namespace vd::literals;
 using namespace testing;
 using namespace std::chrono_literals;
@@ -40,6 +41,23 @@ const std::string gRangesContentPath = "/content_ranges";
 const std::string gUrlRanges = gAddress + gRangesContentPath;
 auto gContentSpan = std::as_bytes(std::span<const char>{gContent.cbegin(), gContent.size()});
 auto gDefaultSource = MemoryViewSource{gContentSpan};
+
+
+
+TEST(UrlParsingTests, AddressExtraction)
+{
+    ASSERT_EQ(std::string("http://random.site.com:1234"), ExtractAddress("http://random.site.com:1234"));
+    ASSERT_EQ(std::string("http://random.site.com:1234"), ExtractAddress("http://random.site.com:1234/"));
+    ASSERT_EQ(std::string("http://random.site.com:1234"), ExtractAddress("http://random.site.com:1234/path"));
+}
+
+TEST(UrlParsingTests, PathAndQueryExtraction)
+{
+    ASSERT_EQ(std::string("/"), ExtractPathAndQuery("http://random.site.com:1234"));
+    ASSERT_EQ(std::string("/"), ExtractPathAndQuery("http://random.site.com:1234/"));
+    ASSERT_EQ(std::string("/path"), ExtractPathAndQuery("http://random.site.com:1234/path"));
+    ASSERT_EQ(std::string("/path?query#hash"), ExtractPathAndQuery("http://random.site.com:1234/path?query#hash"));
+}
 
 
 

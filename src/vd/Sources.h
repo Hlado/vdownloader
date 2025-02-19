@@ -40,6 +40,9 @@ namespace internal
 void AssertRangeCorrect(
     std::size_t pos, std::size_t bufSize, std::size_t contentLength);
 
+std::string_view ExtractAddress(std::string_view url);
+std::string_view ExtractPathAndQuery(std::string_view url);
+
 } //namespace internal
 
 //Class to access web resource by HTTP(S) protocol. Establish keep-alive connection on creation.

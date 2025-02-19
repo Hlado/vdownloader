@@ -68,6 +68,14 @@ struct MediaContext final
 
 
 
+MediaParams MediaParams::Default()
+{
+    return MediaParams{ .picker = [](auto) { return 0; },
+                        .skipNonRef = false};
+}
+
+
+
 namespace
 {
 
@@ -211,12 +219,12 @@ void AssertPtsIsSet(const AVFrame &frame)
 
 
 VideoStream OpenMediaSource(ReaderFactory readerFactory,
-                            const StreamPicker &picker)
+                            MediaParams params)
 {
 
     using namespace std::ranges::views;
 
-    auto activeCtx = MakeContext(readerFactory(), picker);
+    auto activeCtx = MakeContext(readerFactory(), params.picker);
 
     auto streams = std::span<AVStream *>(activeCtx->formatCtx->streams,
                                          activeCtx->formatCtx->nb_streams);
@@ -229,12 +237,17 @@ VideoStream OpenMediaSource(ReaderFactory readerFactory,
 
 VideoStream::VideoStream(std::unique_ptr<MediaContext> activeContext,
                          std::unique_ptr<MediaContext> seekingContext,
-                         AVStream &stream)
+                         AVStream &stream,
+                         bool skipNonRef)
     : mActiveCtx(std::move(activeContext)),
       mSeekingCtx(std::move(seekingContext)),
       mStream(stream)
 {
-
+    if(skipNonRef)
+    {
+        mActiveCtx->codecCtx->skip_frame = AVDISCARD_NONREF;
+        mSeekingCtx->codecCtx->skip_frame = AVDISCARD_NONREF;
+    }
 }
 
 VideoStream::VideoStream(VideoStream &&other) = default;

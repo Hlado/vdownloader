@@ -49,8 +49,17 @@ class VideoStream;
 using StreamPicker = std::function<std::size_t(std::span<const AVStream * const>)>;
 using ReaderFactory = std::function<std::unique_ptr<LibavReader>()>;
 
+struct MediaParams final
+{
+    StreamPicker picker;
+    bool skipNonRef;
+
+    //Picks first stream, no skipping allowed
+    static MediaParams Default();
+};
+
 VideoStream OpenMediaSource(ReaderFactory readerFactory,
-                            const StreamPicker &picker = [](auto) { return 0; });
+                            MediaParams params = MediaParams::Default());
 
 
 
@@ -59,12 +68,13 @@ struct MediaContext;
 class VideoStream final
 {
     friend VideoStream OpenMediaSource(ReaderFactory readerFactory,
-                                       const StreamPicker &picker);
+                                       MediaParams params);
 
 private:
     VideoStream(std::unique_ptr<MediaContext> activeContext,
                 std::unique_ptr<MediaContext> seekingContext,
-                AVStream &stream);
+                AVStream &stream,
+                bool skipNonRef = false);
 
 public:
     VideoStream(const VideoStream &other) = delete;

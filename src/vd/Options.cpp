@@ -118,7 +118,7 @@ std::optional<Options> ParseOptions(int argc, const char * const * argv)
         "chunk",
         "Size in bytes of cached chunks when downloading video via http (512KB by default or when set to 0)",
         {'c',"chunk"},
-        1 << 19);
+        1 << 21);
     static auto defaultFormat = "s{s}f{f}({t}).tga";
     args::ValueFlag<std::string> format(
         parser,
@@ -126,6 +126,11 @@ std::optional<Options> ParseOptions(int argc, const char * const * argv)
         std::format(R"(File names format ("{}" by default: s - segment index (1-based), f - frame index (1-based), t - frame timestamp in XsYms format))", defaultFormat),
         {'f',"format"},
         defaultFormat);
+    args::Flag skipping(
+        parser,
+        "skip",
+        "Allow skipping non-referenced frames to speedup processing",
+        {'s', "skip"});
     args::ValueFlag<int> threads(
         parser,
         "threads",
@@ -171,11 +176,12 @@ std::optional<Options> ParseOptions(int argc, const char * const * argv)
             throw Error{R"("chunk" parameter must be positive and in range of 64-bit signed integer values)"};
         }
 
-        return Options{.format = ConvertFormat(format.Get()),
-                       .videoUrl = source.Get(),
-                       .segments = ParseSegments(segments),
-                       .numThreads = numThreads,
-                       .chunkSize = chunkSize };
+        return Options{ .format = ConvertFormat(format.Get()),
+                        .videoUrl = source.Get(),
+                        .segments = ParseSegments(segments),
+                        .numThreads = numThreads,
+                        .chunkSize = chunkSize,
+                        .skipping = skipping };
     }
     catch(args::Help &)
     {

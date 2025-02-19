@@ -66,6 +66,7 @@ struct ThreadContext final
     std::shared_ptr<SourceBase> source;
     Semaphore &semaphore;
     Options::Segment range;
+    Options options;
 };
 
 
@@ -75,6 +76,9 @@ void ForEachFrame(ThreadContext ctx, FrameHandler callback)
     ctx.semaphore.acquire();
     auto releaseSemaphore = Defer([&ctx]() { ctx.semaphore.release(); });
 
+    auto params = MediaParams::Default();
+    params.skipNonRef = ctx.options.skipping;
+
     auto stream =
         OpenMediaSource(
             [&ctx]()
@@ -83,7 +87,8 @@ void ForEachFrame(ThreadContext ctx, FrameHandler callback)
                     std::make_unique<LibavReader>(
                         ctx.source,
                         LibavReader::SeekSizeMode::Cache);
-            });
+            },
+            params);
 
     auto interval = (ctx.range.to - ctx.range.from) / (ctx.range.numFrames + 1ll);
     //== 0 is very extreme case but still possible
@@ -160,7 +165,8 @@ int main(int argc, char *argv[])
                     ThreadContext{
                         .source = source,
                         .semaphore = *semaphore,
-                        .range = segment
+                        .range = segment,
+                        .options = *options
                     },
                     [format,segmentIndex](auto const &image, auto timestamp, auto index)
                     {

@@ -23,6 +23,7 @@ struct Options final
     std::vector<Segment> segments;
     std::uint8_t numThreads;
     std::size_t chunkSize;
+    bool skipping;
 };
 
 

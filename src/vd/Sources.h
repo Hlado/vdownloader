@@ -98,8 +98,6 @@ private:
 
 
 
-extern std::atomic<std::size_t> counterr;
-
 //File size is cached in constructor, shared access to underlying file
 //is not supposed to happen, there will be issues
 class FileSource final

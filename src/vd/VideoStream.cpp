@@ -195,7 +195,7 @@ std::unique_ptr<MediaContext> MakeContext(std::unique_ptr<LibavReader> &&reader,
         throw Error{"failed to allocate packet"};
     }
 
-    return std::move(ctx);
+    return ctx;
 }
 
 void AssertPtsIsSet(const AVFrame &frame)

@@ -14,8 +14,45 @@ extern "C"
 namespace vd
 {
 
-namespace
+namespace internal
 {
+
+std::unique_ptr<AVFrame, LibavFrameDeleter> ConvertFrame(const AVFrame &frame, AVPixelFormat format)
+{
+    auto ctx = sws_getContext(frame.width, frame.height, static_cast<AVPixelFormat>(frame.format),
+                              frame.width, frame.height, format,
+                              SWS_ACCURATE_RND & SWS_FULL_CHR_H_INT,
+                              NULL, NULL, NULL);
+    if(ctx == nullptr)
+    {
+        throw Error{"failed to create sws context"};
+    }
+    Defer freeContext([ctx]() { sws_freeContext(ctx); });
+
+    auto res = std::unique_ptr<AVFrame, LibavFrameDeleter>{av_frame_alloc()};
+    if(!res)
+    {
+        throw Error{"failed to create frame"};
+    }
+
+    res->format = format;
+    res->width = frame.width;
+    res->height = frame.height;
+    if(auto err = av_frame_get_buffer(res.get(), 0); err != 0)
+    {
+        throw LibraryCallError{"av_frame_get_buffer", err};
+    }
+
+    sws_scale(ctx,
+              frame.data,
+              frame.linesize,
+              0,
+              frame.height,
+              res->data,
+              res->linesize);
+
+    return res;
+}
 
 //Only ARGB/RGBA is supported
 Image ToImage(const AVFrame &frame, AVPixelFormat format)
@@ -28,41 +65,29 @@ Image ToImage(const AVFrame &frame, AVPixelFormat format)
                                    static_cast<int>(format))};
     }
 
-    auto ctx = sws_getContext(frame.width, frame.height, static_cast<AVPixelFormat>(frame.format),
-                              frame.width, frame.height, format,
-                              0, NULL, NULL, NULL);
-    if(ctx == nullptr)
+    auto converted = ConvertFrame(frame, format);
+
+    auto numPixels = converted->width * converted->height;
+    auto rowSize = IntCast<std::size_t>(converted->width * 4);
+    auto dataSize = IntCast<std::size_t>(numPixels * 4);
+
+    std::vector<std::byte> buf(dataSize, (std::byte)0);
+
+    for(int i = 0; i < converted->height; ++i)
     {
-        throw Error{"failed to create sws context"};
+        auto src = converted->data[0] + converted->linesize[0] * i;
+        auto dst = buf.data() + converted->width * i;
+        std::memcpy(dst, src, rowSize);
     }
-    Defer freeContext([ctx]() { sws_freeContext(ctx); });
 
-
-    auto res = Image{ .data = std::vector<std::byte>{},
-                      .width = IntCast<std::size_t>(frame.width),
-                      .height = IntCast<std::size_t>(frame.height)};
-    res.data.resize(Mul(res.width, res.height, 4u));
-
-    int strides[4];
-    for(auto &s : strides)
-    {
-        s = IntCast<int>(res.width * 4);
-    }
-    auto ptr = reinterpret_cast<std::uint8_t *>(res.data.data());
-    std::uint8_t *planes[] = { &ptr[0], &ptr[1], &ptr[2], &ptr[3] };
-
-    sws_scale(ctx,
-              static_cast<const uint8_t * const *>(frame.data),
-              frame.linesize,
-              0,
-              frame.height,
-              static_cast<uint8_t * const *>(planes),
-              strides);
-
-    return res;
+    return Image{ .data = std::move(buf),
+                  .width = IntCast<std::size_t>(converted->width),
+                  .height = IntCast<std::size_t>(converted->height)};
 }
 
-}//unnamed namespace
+}//namespace internal
+
+using namespace internal;
 
 
 

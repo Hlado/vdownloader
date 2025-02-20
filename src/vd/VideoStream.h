@@ -116,6 +116,17 @@ private:
                                                       std::int64_t target);
 };
 
+
+
+namespace internal
+{
+
+std::unique_ptr<AVFrame, LibavFrameDeleter> ConvertFrame(const AVFrame &frame, AVPixelFormat format);
+//Only ARGB/RGBA is supported
+Image ToImage(const AVFrame &frame, AVPixelFormat format);
+
+}//namespace internal
+
 } //namespace vd
 
 #endif //VDOWNLOADER_VD_VIDEO_STREAM_H_

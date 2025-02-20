@@ -3,6 +3,7 @@
 
 #include <filesystem>
 #include <span>
+#include <vector>
 
 namespace vd
 {

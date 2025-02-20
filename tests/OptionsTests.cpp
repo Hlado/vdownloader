@@ -72,7 +72,7 @@ TEST(OptionsTests, CustomFormat)
 
 TEST(OptionsTests, Threads)
 {
-    auto argv = std::array{"app_path", "-t" ,"a", "url", "1s500ms-2s300ms:22"};
+    auto argv = std::array{"app_path", "-t" ,"a", "url", "1s500ms-2s300ms:22", "1s500ms-2s300ms:22", "1s500ms-2s300ms:22"};
     ASSERT_THROW(Parse(argv), args::Error);
 
     argv[2] = "-1";
@@ -89,6 +89,11 @@ TEST(OptionsTests, Threads)
     argv[2] = "0";
     options = Parse(argv);
     ASSERT_TRUE(options);
+    ASSERT_EQ(3, options->numThreads);
+
+    auto argv2 = std::array{"app_path", "url", "1s500ms-2s300ms:22"};
+    options = Parse(argv2);
+    ASSERT_TRUE(options);
     if(std::thread::hardware_concurrency() != 0)
     {
         ASSERT_EQ(std::thread::hardware_concurrency() + 1, options->numThreads);
@@ -97,11 +102,6 @@ TEST(OptionsTests, Threads)
     {
         ASSERT_EQ(1, options->numThreads);
     }
-
-    auto argv2 = std::array{"app_path", "url", "1s500ms-2s300ms:22"};
-    options = Parse(argv2);
-    ASSERT_TRUE(options);
-    ASSERT_EQ(std::thread::hardware_concurrency() + 1, options->numThreads);
 }
 
 TEST(OptionsTests, CorrectSegmentFull)

@@ -43,7 +43,7 @@ TEST_F(VideoStreamTestF, FullReadFrameByFrame)
 
     for(std::size_t i = 0; i < 50; ++i)
     {
-        auto image = frames[i].Image();
+        auto image = frames[i].RgbaImage();
         ASSERT_EQ(100, image.height);
         ASSERT_EQ(100, image.width);
         ASSERT_EQ(255_b, image.data[0]);
@@ -51,7 +51,7 @@ TEST_F(VideoStreamTestF, FullReadFrameByFrame)
 
     for(std::size_t i = 50; i < 99; ++i)
     {
-        auto image = frames[i].Image();
+        auto image = frames[i].RgbaImage();
         ASSERT_EQ(100, image.height);
         ASSERT_EQ(100, image.width);
         ASSERT_EQ(155_b, image.data[0]);
@@ -59,7 +59,7 @@ TEST_F(VideoStreamTestF, FullReadFrameByFrame)
 
     for(std::size_t i = 100; i < 150; ++i)
     {
-        auto image = frames[i].Image();
+        auto image = frames[i].RgbaImage();
         ASSERT_EQ(100, image.height);
         ASSERT_EQ(100, image.width);
         ASSERT_EQ(55_b, image.data[0]);
@@ -75,37 +75,37 @@ TEST_F(VideoStreamTestF, SeekExactlyToFrameStart)
 {
     auto frame = *stream->NextFrame(4900ms);
     ASSERT_EQ(4900ms, frame.Timestamp());
-    ASSERT_EQ(255_b, frame.Image().data[0]);
+    ASSERT_EQ(255_b, frame.RgbaImage().data[0]);
 
     frame = *stream->NextFrame(5000ms);
     ASSERT_EQ(5000ms, frame.Timestamp());
-    ASSERT_EQ(155_b, frame.Image().data[0]);
+    ASSERT_EQ(155_b, frame.RgbaImage().data[0]);
 }
 
 TEST_F(VideoStreamTestF, SeekBetweenFrames)
 {
     auto frame = *stream->NextFrame(9850ms);
     ASSERT_EQ(9800ms, frame.Timestamp());
-    ASSERT_EQ(155_b, frame.Image().data[0]);
+    ASSERT_EQ(155_b, frame.RgbaImage().data[0]);
 
     frame = *stream->NextFrame(9950ms);
     ASSERT_EQ(9900ms, frame.Timestamp());
-    ASSERT_EQ(155_b, frame.Image().data[0]);
+    ASSERT_EQ(155_b, frame.RgbaImage().data[0]);
 
     frame = *stream->NextFrame(10050ms);
     ASSERT_EQ(10000ms, frame.Timestamp());
-    ASSERT_EQ(55_b, frame.Image().data[0]);
+    ASSERT_EQ(55_b, frame.RgbaImage().data[0]);
 }
 
 TEST_F(VideoStreamTestF, SeekToEndAndToBeginning)
 {
     auto frame = *stream->NextFrame(15s);
     ASSERT_EQ(14900ms, frame.Timestamp());
-    ASSERT_EQ(55_b, frame.Image().data[0]);
+    ASSERT_EQ(55_b, frame.RgbaImage().data[0]);
 
     frame = *stream->NextFrame(0s);
     ASSERT_EQ(0s, frame.Timestamp());
-    ASSERT_EQ(255_b, frame.Image().data[0]);
+    ASSERT_EQ(255_b, frame.RgbaImage().data[0]);
 }
 
 TEST_F(VideoStreamTestF, RepeatedSeekToSameTimestamp)
@@ -113,39 +113,39 @@ TEST_F(VideoStreamTestF, RepeatedSeekToSameTimestamp)
     //Middle of stream
     auto frame = *stream->NextFrame(2s); 
     ASSERT_EQ(2s, frame.Timestamp());
-    ASSERT_EQ(255_b, frame.Image().data[0]);
+    ASSERT_EQ(255_b, frame.RgbaImage().data[0]);
     frame = *stream->NextFrame(2s);
     ASSERT_EQ(2s, frame.Timestamp());
-    ASSERT_EQ(255_b, frame.Image().data[0]);
+    ASSERT_EQ(255_b, frame.RgbaImage().data[0]);
 
     frame = *stream->NextFrame(2050ms);
     ASSERT_EQ(2000ms, frame.Timestamp());
-    ASSERT_EQ(255_b, frame.Image().data[0]);
+    ASSERT_EQ(255_b, frame.RgbaImage().data[0]);
     frame = *stream->NextFrame(2050ms);
     ASSERT_EQ(2000ms, frame.Timestamp());
-    ASSERT_EQ(255_b, frame.Image().data[0]);
+    ASSERT_EQ(255_b, frame.RgbaImage().data[0]);
 
     //End of stream
     frame = *stream->NextFrame(14900ms);
     ASSERT_EQ(14900ms, frame.Timestamp());
-    ASSERT_EQ(55_b, frame.Image().data[0]);
+    ASSERT_EQ(55_b, frame.RgbaImage().data[0]);
     frame = *stream->NextFrame(14900ms);
     ASSERT_EQ(14900ms, frame.Timestamp());
-    ASSERT_EQ(55_b, frame.Image().data[0]);
+    ASSERT_EQ(55_b, frame.RgbaImage().data[0]);
 
     frame = *stream->NextFrame(14950ms);
     ASSERT_EQ(14900ms, frame.Timestamp());
-    ASSERT_EQ(55_b, frame.Image().data[0]);
+    ASSERT_EQ(55_b, frame.RgbaImage().data[0]);
     frame = *stream->NextFrame(14950ms);
     ASSERT_EQ(14900ms, frame.Timestamp());
-    ASSERT_EQ(55_b, frame.Image().data[0]);
+    ASSERT_EQ(55_b, frame.RgbaImage().data[0]);
 
     frame = *stream->NextFrame(15s);
     ASSERT_EQ(14900ms, frame.Timestamp());
-    ASSERT_EQ(55_b, frame.Image().data[0]);
+    ASSERT_EQ(55_b, frame.RgbaImage().data[0]);
     frame = *stream->NextFrame(15s);
     ASSERT_EQ(14900ms, frame.Timestamp());
-    ASSERT_EQ(55_b, frame.Image().data[0]);
+    ASSERT_EQ(55_b, frame.RgbaImage().data[0]);
 }
 
 TEST_F(VideoStreamTestF, SeekingAfterNormalReading)
@@ -157,22 +157,22 @@ TEST_F(VideoStreamTestF, SeekingAfterNormalReading)
 
     auto frame = *stream->NextFrame(5s);
     ASSERT_EQ(5s, frame.Timestamp());
-    ASSERT_EQ(155_b, frame.Image().data[0]);
+    ASSERT_EQ(155_b, frame.RgbaImage().data[0]);
 }
 
 TEST_F(VideoStreamTestF, NormalReadingAfterSeeking)
 {
     auto frame = *stream->NextFrame(4850ms);
     ASSERT_EQ(4800ms, frame.Timestamp());
-    ASSERT_EQ(255_b, frame.Image().data[0]);
+    ASSERT_EQ(255_b, frame.RgbaImage().data[0]);
 
     frame = *stream->NextFrame();
     ASSERT_EQ(4900ms, frame.Timestamp());
-    ASSERT_EQ(255_b, frame.Image().data[0]);
+    ASSERT_EQ(255_b, frame.RgbaImage().data[0]);
 
     frame = *stream->NextFrame();
     ASSERT_EQ(5s, frame.Timestamp());
-    ASSERT_EQ(155_b, frame.Image().data[0]);
+    ASSERT_EQ(155_b, frame.RgbaImage().data[0]);
 }
 
 }//unnamed namespace

@@ -9,8 +9,8 @@ set(BUILD_APPS OFF CACHE BOOL INTERNAL FORCE)
 
 find_package(ada CONFIG REQUIRED)
 find_package(httplib CONFIG REQUIRED)
-find_package(libyuv CONFIG REQUIRED)
 find_package(FFMPEG REQUIRED)
+find_package(Stb REQUIRED)
 
 #We enforce warning intolerance only for our own code
 if(MSVC)

@@ -15,7 +15,9 @@ Simple invocation may look like this:
 
 It will extract 11 frames (first & last frames + 9 inbetween)
 from 0-10 seconds range and 11 frames from 20.5-30.5 seconds range
-in tga format to current directory.
+in jpg format to current directory. Png and tga formats are also
+supported, format is determined by extension, if no known extension
+is present, jpg format is used and extension is applied.
 
 # Build
 

@@ -1,7 +1,6 @@
 #ifndef VDOWNLOADER_VD_VIDEO_STREAM_H_
 #define VDOWNLOADER_VD_VIDEO_STREAM_H_
 
-#include "DecodingUtils.h"
 #include "LibavUtils.h"
 #include "Sources.h"
 
@@ -19,6 +18,16 @@ using Nanoseconds = std::chrono::nanoseconds;
 
 
 
+
+struct Image final
+{
+    std::vector<std::byte> data;
+    std::size_t width;
+    std::size_t height;
+};
+
+
+
 class Frame final
 {
 public:
@@ -31,7 +40,10 @@ public:
     static Frame Create(std::shared_ptr<const AVFrame> rawFrame,
                         AVRational timeBase);
 
-    ArgbImage Image() const;
+    Image ArgbImage() const;
+    Image BgraImage() const;
+    Image RgbaImage() const;
+
     //Equal to Frame::sentinelTs when unknown
     Nanoseconds Timestamp() const noexcept;
     //Equal to zero when unknown

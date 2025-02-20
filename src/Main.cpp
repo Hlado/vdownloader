@@ -1,8 +1,6 @@
+#include <vd/ImageFormats.h>
 #include <vd/Options.h>
-#include <vd/Tga.h>
 #include <vd/VideoStream.h>
-
-#include <libyuv.h>
 
 #include <future>
 #include <limits>
@@ -57,7 +55,7 @@ std::string ToString(const std::chrono::duration<RepT, PeriodT> &val)
 
 
 using FrameHandler =
-    std::function<void(const ArgbImage &, std::chrono::nanoseconds, std::size_t)>;
+    std::function<void(const Frame &, Nanoseconds, std::size_t)>;
 using Semaphore =
     std::counting_semaphore<std::numeric_limits<decltype(Options::numThreads)>::max()>;
 
@@ -102,14 +100,14 @@ void ForEachFrame(ThreadContext ctx, FrameHandler callback)
     {
         auto timestamp = ctx.range.from + i * interval;
         auto frame = stream.NextFrame(timestamp).value();
-        callback(frame.Image(), timestamp, i + 1ull);
+        callback(frame, timestamp, i + 1ull);
     }
 }
 
 void SaveFrame(
     std::string_view pathTemplate,
     std::size_t segmentIndex,
-    const ArgbImage &image,
+    const Frame &frame,
     std::chrono::nanoseconds timestamp,
     std::size_t frameIndex)
 {
@@ -119,7 +117,26 @@ void SaveFrame(
                      std::make_format_args(segmentIndex,
                                            frameIndex,
                                            timestampStr));
-    WriteTga(pathStr, image.data, image.width);
+
+    if(pathStr.ends_with(".tga"))
+    {
+        auto image = frame.BgraImage();
+        WriteTga(pathStr, image.data, image.width);
+    }
+    else if(pathStr.ends_with(".png"))
+    {
+        auto image = frame.RgbaImage();
+        WritePng(pathStr, image.data, image.width);
+    }
+    else
+    {
+        if(!pathStr.ends_with(".jpg"))
+        {
+            pathStr.append(".jpg");
+        }
+        auto image = frame.RgbaImage();
+        WriteJpg(pathStr, image.data, image.width);
+    }
 }
 
 std::size_t EstimateNumChunks(std::size_t numThreads)

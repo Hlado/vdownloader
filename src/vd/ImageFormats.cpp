@@ -1,11 +1,97 @@
-#include "Tga.h"
+#include "ImageFormats.h"
 #include "Errors.h"
 #include "Utils.h"
 
 #include <format>
 
+//Stb section
+namespace
+{
+
+class StbiwError : public vd::Error
+{
+public:
+    StbiwError(const char *condition)
+        : Error{std::format(R"(stbi image writing library assertion "{}" failed)",
+                            condition)}
+    {
+    
+    }
+};
+
+void StbiwAssert(bool condition, const char *conditionStr)
+{
+    if(!condition)
+    {
+        throw StbiwError{conditionStr};
+    }
+}
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define STBIW_ASSERT(condition) (StbiwAssert(condition, #condition))
+
+#include <stb_image_write.h>
+
+}//unnamed namespace
+
+
+
 namespace vd
 {
+
+void WriteJpg(const std::filesystem::path &path,
+              std::span<const std::byte> rgbaData,
+              std::size_t width,
+              std::uint8_t quality)
+{
+    if(quality > 100)
+    {
+        throw ArgumentError{R"(parameter "quality" is greater than 100)"};
+    }
+
+    auto rowSize = Mul(width, 4u);
+    auto height = rgbaData.size_bytes() / rowSize;
+
+    auto err =
+        stbi_write_jpg(
+            path.string().c_str(),
+            IntCast<int>(width),
+            IntCast<int>(height),
+            4,
+            rgbaData.data(),
+            quality);
+
+    if(err == 0)
+    {
+        throw LibraryCallError{"stbi_write_jpg", err};
+    }
+}
+
+
+
+void WritePng(const std::filesystem::path &path,
+              std::span<const std::byte> rgbaData,
+              std::size_t width)
+{
+    auto rowSize = Mul(width, 4u);
+    auto height = rgbaData.size_bytes() / rowSize;
+
+    auto err =
+        stbi_write_png(
+            path.string().c_str(),
+            IntCast<int>(width),
+            IntCast<int>(height),
+            4,
+            rgbaData.data(),
+            IntCast<int>(rowSize));
+
+    if(err == 0)
+    {
+        throw LibraryCallError{"stbi_write_png", err};
+    }
+}
+
+
 
 namespace
 {

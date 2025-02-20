@@ -2,6 +2,7 @@
 #include <vd/Options.h>
 #include <vd/VideoStream.h>
 
+#include <algorithm>
 #include <future>
 #include <limits>
 #include <semaphore>
@@ -11,6 +12,93 @@ using namespace vd;
 
 namespace
 {
+
+using Semaphore =
+    std::counting_semaphore<std::numeric_limits<decltype(Options::numThreads)>::max()>;
+
+struct ThreadContext final
+{
+    std::shared_ptr<SourceBase> source;
+    Semaphore &semaphore;
+    Options options;
+    std::size_t segIdx;
+};
+
+
+
+std::shared_ptr<SourceBase> OpenSource(const Options &options);
+std::future<void> LaunchThread(ThreadContext ctx);
+int SafeWait(std::vector<std::future<void>> &futures) noexcept;
+
+}
+
+
+
+int main(int argc, char *argv[])
+{
+    auto semaphore = std::optional<Semaphore>{};
+    auto futures = std::vector<std::future<void>>{};
+    int err = 0;
+
+    //This block is needed to guarantee that deferred lambda executed before return
+    {
+        //It seems that standard doesn't guarantee that futures returned
+        //by async will wait for completion in destructor (at least words
+        //"may" and "can" give hint about it), so we have to write this
+        Defer wait{
+            [&err, &futures] ()
+            {
+                err += SafeWait(futures);
+            }};
+
+        try
+        {
+            auto options = ParseOptions(argc, argv);
+            if(!options)
+            {
+                return 0;
+            }
+
+            //It's for exception safety of push_back. Has to be placed before async
+            futures.reserve(options->segments.size());
+            semaphore.emplace(options->numThreads);
+
+            auto source = OpenSource(*options);
+
+            for(std::size_t idx = 0; idx < options->segments.size(); ++idx)
+            {
+                auto ctx = ThreadContext{ .source = source,
+                                          .semaphore = *semaphore,
+                                          .options = *options,
+                                          .segIdx = idx };
+                futures.push_back(LaunchThread(std::move(ctx)));
+            }
+        
+        }
+        catch(const std::exception &e)
+        {
+            err = 1;
+            Errorln(e.what());
+        }
+    }
+
+    return err;
+}
+
+namespace
+{
+
+void ThreadMain(ThreadContext &ctx);
+
+std::future<void> LaunchThread(ThreadContext ctx)
+{
+    return
+        std::async(
+            [ctx = std::move(ctx)]() mutable
+            {
+                ThreadMain(ctx);
+            });
+}
 
 template <SourceConcept SourceT>
 std::shared_ptr<SourceBase> MakeSource(const std::string &url,
@@ -23,6 +111,7 @@ std::shared_ptr<SourceBase> MakeSource(const std::string &url,
                 CachedSource{
                     SourceT{url}, numChunks, chunkSize}}};
 }
+
 
 std::shared_ptr<SourceBase> OpenSource(const std::string &url,
                                        std::size_t numChunks,
@@ -42,6 +131,139 @@ std::shared_ptr<SourceBase> OpenSource(const std::string &url,
     return res;
 }
 
+VideoStream OpenStream(std::shared_ptr<SourceBase> source,
+                       const Options &options);
+void SaveFrame(std::filesystem::path path, const Frame &frame);
+std::filesystem::path MakePath(std::string_view pattern,
+                               std::size_t segIndex,
+                               std::size_t frameIndex,
+                               Nanoseconds timestamp);
+
+void ThreadMain(ThreadContext &ctx)
+{
+    ctx.semaphore.acquire();
+    Defer release{
+        [&ctx]()
+        {
+            ctx.semaphore.release();
+        }};
+
+    auto stream = OpenStream(ctx.source, ctx.options);
+
+    auto seg = ctx.options.segments[ctx.segIdx];
+    auto interval = (seg.to - seg.from) / (seg.numFrames + 1ll);
+    //== 0 is very extreme case but still possible
+    if(interval <= 0ns)
+    {
+        throw Error{std::format("too many frames ({}) requested in segment",
+                                seg.numFrames)};
+    }
+
+    auto numFrames = seg.numFrames + 2ll;
+    for(std::int64_t frameIdx = 0; frameIdx < numFrames; ++frameIdx)
+    {
+        auto timestamp = seg.from + interval*frameIdx;
+
+        auto frame = stream.NextFrame(timestamp).value();
+        
+        auto path = MakePath(ctx.options.format,
+                             ctx.segIdx,
+                             IntCast<std::size_t>(frameIdx + 1),
+                             timestamp);
+        SaveFrame(path, frame);
+    }
+}
+
+VideoStream OpenStream(std::shared_ptr<SourceBase> source,
+                       const Options &options)
+{
+    auto params = MediaParams::Default();
+    params.skipNonRef = options.skipping;
+
+    auto factory =
+        [&source]()
+        {
+            return
+                std::make_unique<LibavReader>(
+                    source,
+                    LibavReader::SeekSizeMode::Cache);
+        };
+
+    return OpenMediaSource(factory, params);
+}
+
+std::size_t CalcNumChunks(std::size_t numThreads)
+{
+    //We want to keep starting chunk containing metadata and at least one chunk
+    //for each thread, so for safety we keep twice as much 
+    return numThreads*2 + 1;
+}
+
+std::shared_ptr<SourceBase> OpenSource(const Options &options)
+{
+    return OpenSource(options.videoUrl,
+                      CalcNumChunks(options.numThreads),
+                      options.chunkSize);
+}
+
+bool HasValidExtension(const std::filesystem::path &path)
+{
+    static auto exts = std::unordered_set<std::string>{".tga", ".jpg", ".png"};
+
+    return path.has_extension() && exts.contains(path.extension().string());
+}
+
+void SaveFrame(std::filesystem::path path, const Frame &frame)
+{
+    if(!HasValidExtension(path))
+    {
+        path += ".jpg";
+    }
+
+    if(path.extension() == ".tga")
+    {
+        auto image = frame.BgraImage();
+        WriteTga(path, image.data, image.width);
+    }
+    else if(path.extension() == ".png")
+    {
+        auto image = frame.RgbaImage();
+        WritePng(path, image.data, image.width);
+    }
+    else
+    {
+        auto image = frame.RgbaImage();
+        WriteJpg(path, image.data, image.width);
+    }
+}
+
+int SafeWait(std::future<void> &fut) noexcept
+{
+    try
+    {
+        fut.get();
+    }
+    catch(const std::exception &e)
+    {
+        try { Errorln(e.what()); } catch(...) {}
+        return 1;
+    }
+
+    return 0;
+}
+
+int SafeWait(std::vector<std::future<void>> &futures) noexcept
+{
+    auto err = int{0};
+
+    for(auto &f : futures)
+    {
+        err += SafeWait(f);
+    }
+
+    return err;
+}
+
 template <typename RepT, typename PeriodT>
 std::string ToString(const std::chrono::duration<RepT, PeriodT> &val)
 {
@@ -52,167 +274,15 @@ std::string ToString(const std::chrono::duration<RepT, PeriodT> &val)
     return std::format("{}s{}ms", s.count(), ms.count());
 }
 
-
-
-using FrameHandler =
-    std::function<void(const Frame &, Nanoseconds, std::size_t)>;
-using Semaphore =
-    std::counting_semaphore<std::numeric_limits<decltype(Options::numThreads)>::max()>;
-
-struct ThreadContext final
+std::filesystem::path MakePath(std::string_view format,
+                               std::size_t segIndex,
+                               std::size_t frameIndex,
+                               Nanoseconds timestamp)
 {
-    std::shared_ptr<SourceBase> source;
-    Semaphore &semaphore;
-    Options::Segment range;
-    Options options;
-};
-
-
-
-void ForEachFrame(ThreadContext ctx, FrameHandler callback)
-{
-    ctx.semaphore.acquire();
-    auto releaseSemaphore = Defer([&ctx]() { ctx.semaphore.release(); });
-
-    auto params = MediaParams::Default();
-    params.skipNonRef = ctx.options.skipping;
-
-    auto stream =
-        OpenMediaSource(
-            [&ctx]()
-            {
-                return
-                    std::make_unique<LibavReader>(
-                        ctx.source,
-                        LibavReader::SeekSizeMode::Cache);
-            },
-            params);
-
-    auto interval = (ctx.range.to - ctx.range.from) / (ctx.range.numFrames + 1ll);
-    //== 0 is very extreme case but still possible
-    if(interval <= 0ns)
-    {
-        throw Error{std::format("too many frames ({}) requested in segment",
-                                ctx.range.numFrames)};
-    }
-
-    for(std::int64_t i = 0; i < ctx.range.numFrames + 2ll; ++i)
-    {
-        auto timestamp = ctx.range.from + i * interval;
-        auto frame = stream.NextFrame(timestamp).value();
-        callback(frame, timestamp, i + 1ull);
-    }
-}
-
-void SaveFrame(
-    std::string_view pathTemplate,
-    std::size_t segmentIndex,
-    const Frame &frame,
-    std::chrono::nanoseconds timestamp,
-    std::size_t frameIndex)
-{
-    auto timestampStr = ToString(timestamp);
-    auto pathStr =
-        std::vformat(pathTemplate,
-                     std::make_format_args(segmentIndex,
-                                           frameIndex,
-                                           timestampStr));
-
-    if(pathStr.ends_with(".tga"))
-    {
-        auto image = frame.BgraImage();
-        WriteTga(pathStr, image.data, image.width);
-    }
-    else if(pathStr.ends_with(".png"))
-    {
-        auto image = frame.RgbaImage();
-        WritePng(pathStr, image.data, image.width);
-    }
-    else
-    {
-        if(!pathStr.ends_with(".jpg"))
-        {
-            pathStr.append(".jpg");
-        }
-        auto image = frame.RgbaImage();
-        WriteJpg(pathStr, image.data, image.width);
-    }
-}
-
-std::size_t EstimateNumChunks(std::size_t numThreads)
-{
-    //We want to keep starting chunk containing metadata and at least one chunk
-    //for each thread, so for safety we keep twice as much 
-    return numThreads*2 + 1;
+    return Format(format,
+                  segIndex,
+                  frameIndex,
+                  ToString(timestamp));
 }
 
 }//unnamed namespace
-
-
-
-int main(int argc, char *argv[])
-{
-    auto semaphore = std::optional<Semaphore>{};
-    auto futures = std::vector<std::future<void>>{};
-    int err = 0;
-
-    try
-    {
-        auto options = ParseOptions(argc, argv);
-        if(!options)
-        {
-            return 0;
-        }
-
-        semaphore.emplace(options->numThreads);
-        auto source = OpenSource(options->videoUrl,
-                                 EstimateNumChunks(options->numThreads),
-                                 options->chunkSize);
-
-        for(std::size_t segmentIndex = 0; auto &segment : options->segments)
-        {
-            ++segmentIndex;
-            auto format = options->format;
-            
-            //It's for exception safety of push_back. Has to be placed before async
-            futures.reserve(futures.size() + 1);
-
-            auto future = std::async(
-                ForEachFrame,
-                    ThreadContext{
-                        .source = source,
-                        .semaphore = *semaphore,
-                        .range = segment,
-                        .options = *options
-                    },
-                    [format,segmentIndex](auto const &image, auto timestamp, auto index)
-                    {
-                        SaveFrame(format, segmentIndex, image, timestamp, index);
-                    });
-            
-            futures.push_back(std::move(future));
-        }
-    }
-    catch(const std::exception &e)
-    {
-        Errorln(e.what());
-        err = 1;
-    }
-
-    //It seems that standard doesn't guarantee that futures returned by async will wait for completion in destructor
-    //(at least words "may" and "can" give hint about it), so we have to write this ugly loop
-    for(auto &future : futures)
-    {
-        try
-        {
-            future.get();
-        }
-        catch(const std::exception &e)
-        {
-            Errorln(e.what());
-            err = 1;
-        }
-    }
-
-    return err;
-}

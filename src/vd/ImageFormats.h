@@ -24,7 +24,7 @@ void WriteTga(std::ostream &stream,
               std::span<const std::byte> bgraData,
               std::size_t width);
 void WriteTga(const std::filesystem::path &path,
-              const std::vector<std::byte> &pixels,
+              std::span<const std::byte> bgraData,
               std::size_t width);
 
 }//namespace vd

@@ -284,17 +284,17 @@ private:
 
 
 
-void WriteTga(std::ostream &stream, const std::vector<std::byte> &pixels, std::size_t width)
+void WriteTga(std::ostream &stream, std::span<const std::byte> bgraData, std::size_t width)
 {
     if(width == 0)
     {
         throw ArgumentError{"width is zero"};
     }
-    if(pixels.empty())
+    if(bgraData.empty())
     {
         throw ArgumentError{"pixels vector is empty"};
     }
-    if(pixels.size() % (width * 4) != 0)
+    if(bgraData.size_bytes() % Mul(width, 4u) != 0)
     {
         throw ArgumentError{"wrong width or pixel format"};
     }
@@ -302,14 +302,14 @@ void WriteTga(std::ostream &stream, const std::vector<std::byte> &pixels, std::s
     TgaFileHeader header;
     header.SetDataType(2);
     header.SetWidth(UintCast<std::uint16_t>(width));
-    header.SetHeight(UintCast<std::uint16_t>(pixels.size() / (width * 4)));
+    header.SetHeight(UintCast<std::uint16_t>(bgraData.size() / Mul(width, 4u)));
     header.SetPixSize(32);
     header.SetNumAttributeBits(8);
     //header.SetLeftToRightFlag(true);
     header.SetTopToBottomFlag(true);
     
     header.Write(stream);
-    stream.write(reinterpret_cast<const char *>(pixels.data()), pixels.size());
+    stream.write(reinterpret_cast<const char *>(bgraData.data()), bgraData.size_bytes());
     stream.flush();
 
     if(!stream)
@@ -318,7 +318,7 @@ void WriteTga(std::ostream &stream, const std::vector<std::byte> &pixels, std::s
     }
 }
 
-void WriteTga(const std::filesystem::path &path, const std::vector<std::byte> &pixels, std::size_t width)
+void WriteTga(const std::filesystem::path &path, std::span<const std::byte> bgraData, std::size_t width)
 {
     auto absolute = std::filesystem::absolute(path);
     std::filesystem::create_directories(absolute.parent_path());
@@ -328,7 +328,7 @@ void WriteTga(const std::filesystem::path &path, const std::vector<std::byte> &p
         throw Error{std::format(R"(failed to open file for writing image "{}")", absolute.string())};
     }
 
-    WriteTga(fs, pixels, width);
+    WriteTga(fs, bgraData, width);
 }
 
 }//namespace vd

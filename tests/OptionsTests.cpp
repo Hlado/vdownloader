@@ -57,7 +57,7 @@ TEST(OptionsTests, DefaultFormat)
     auto argv = std::array{"app_path", "url", "1s500ms-2s300ms:22"};
     auto options = Parse(argv);
     ASSERT_TRUE(options);
-    ASSERT_EQ("s{0}f{1}({2}).tga", options->format);
+    ASSERT_EQ("s{0}f{1}({2}).jpg", options->format);
 }
 
 TEST(OptionsTests, CustomFormat)

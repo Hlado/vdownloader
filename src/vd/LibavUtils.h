@@ -1,7 +1,6 @@
 #ifndef VDOWNLOADER_VD_LIBAV_UTILS_H_
 #define VDOWNLOADER_VD_LIBAV_UTILS_H_
 
-#include "DecodingUtils.h"
 #include "Sources.h"
 
 extern "C"
@@ -91,8 +90,6 @@ private:
 };
 
 
-
-I420Image ToI420Image(const AVFrame &frame);
 
 std::chrono::nanoseconds ToNano(std::int64_t timestamp,
                                 AVRational timeBase,

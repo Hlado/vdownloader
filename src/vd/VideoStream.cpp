@@ -3,6 +3,7 @@
 extern "C"
 {
 #include <libavutil/error.h>
+#include <libswscale/swscale.h>
 }
 
 #include <algorithm>
@@ -12,6 +13,58 @@ extern "C"
 
 namespace vd
 {
+
+namespace
+{
+
+//Only ARGB/RGBA is supported
+Image ToImage(const AVFrame &frame, AVPixelFormat format)
+{
+    if(format != AV_PIX_FMT_ARGB &&
+           format != AV_PIX_FMT_RGBA &&
+           format != AV_PIX_FMT_BGRA)
+    {
+        throw ArgumentError{Format(R"(argument "format"({}) is not supported)",
+                                   static_cast<int>(format))};
+    }
+
+    auto ctx = sws_getContext(frame.width, frame.height, static_cast<AVPixelFormat>(frame.format),
+                              frame.width, frame.height, format,
+                              0, NULL, NULL, NULL);
+    if(ctx == nullptr)
+    {
+        throw Error{"failed to create sws context"};
+    }
+    Defer freeContext([ctx]() { sws_freeContext(ctx); });
+
+
+    auto res = Image{ .data = std::vector<std::byte>{},
+                      .width = IntCast<std::size_t>(frame.width),
+                      .height = IntCast<std::size_t>(frame.height)};
+    res.data.resize(Mul(res.width, res.height, 4u));
+
+    int strides[4];
+    for(auto &s : strides)
+    {
+        s = IntCast<int>(res.width * 4);
+    }
+    auto ptr = reinterpret_cast<std::uint8_t *>(res.data.data());
+    std::uint8_t *planes[] = { &ptr[0], &ptr[1], &ptr[2], &ptr[3] };
+
+    sws_scale(ctx,
+              static_cast<const uint8_t * const *>(frame.data),
+              frame.linesize,
+              0,
+              frame.height,
+              static_cast<uint8_t * const *>(planes),
+              strides);
+
+    return res;
+}
+
+}//unnamed namespace
+
+
 
 Frame::Frame(std::shared_ptr<const AVFrame> rawFrame,
              Nanoseconds timestamp,
@@ -39,9 +92,19 @@ Frame Frame::Create(std::shared_ptr<const AVFrame> rawFrame,
                  ToNano(rawFrame->duration, timeBase, AV_ROUND_INF));
 }
 
-ArgbImage Frame::Image() const
+Image Frame::ArgbImage() const
 {
-    return ToArgb(ToI420Image(*mFrame));
+    return ToImage(*mFrame, AV_PIX_FMT_ARGB);
+}
+
+Image Frame::RgbaImage() const
+{
+    return ToImage(*mFrame, AV_PIX_FMT_RGBA);
+}
+
+Image Frame::BgraImage() const
+{
+    return ToImage(*mFrame, AV_PIX_FMT_BGRA);
 }
 
 Nanoseconds Frame::Timestamp() const noexcept

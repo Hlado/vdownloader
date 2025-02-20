@@ -16,14 +16,15 @@
       "default-features": false,
       "features": [
         "avcodec",
-        "avformat"
+        "avformat",
+        "swscale"
       ]
     },
     {
       "name": "gtest"
     },
     {
-      "name": "libyuv"
+      "name": "stb"
     }
   ],
   "overrides": [
@@ -44,8 +45,8 @@
       "version": "1.14.0"
     },
     {
-      "name": "libyuv",
-      "version": "1857#1"
+      "name": "stb",
+      "version-date": "2024-07-29#1"
     }
   ],
   "builtin-baseline": "6f29f12e82a8293156836ad81cc9bf5af41fe836"

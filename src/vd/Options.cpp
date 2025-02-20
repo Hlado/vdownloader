@@ -119,7 +119,7 @@ std::optional<Options> ParseOptions(int argc, const char * const * argv)
         "Size in bytes of cached chunks when downloading video via http (512KB by default or when set to 0)",
         {'c',"chunk"},
         1 << 21);
-    static auto defaultFormat = "s{s}f{f}({t}).tga";
+    static auto defaultFormat = "s{s}f{f}({t}).jpg";
     args::ValueFlag<std::string> format(
         parser,
         "format",

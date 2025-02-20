@@ -177,32 +177,6 @@ std::size_t LibavReader::GetContentLength() const
 
 
 
-namespace
-{
-
-void AssertYuv420pFormat(const AVFrame &frame)
-{
-    if(frame.format != AV_PIX_FMT_YUV420P)
-    {
-        throw ArgumentError{std::format("image format({}) is not I420", frame.format)};
-    }
-}
-
-}//unnamed namespace
-
-I420Image ToI420Image(const AVFrame &frame)
-{
-    AssertYuv420pFormat(frame);
-
-    return I420Image{.y = reinterpret_cast<std::byte *>(frame.data[0]),
-                     .u = reinterpret_cast<std::byte *>(frame.data[1]),
-                     .v = reinterpret_cast<std::byte *>(frame.data[2]),
-                     .yStride = IntCast<std::size_t>(frame.linesize[0]),
-                     .uvStride = IntCast<std::size_t>(frame.linesize[1]),
-                     .width = IntCast<std::size_t>(frame.width),
-                     .height = IntCast<std::size_t>(frame.height)};
-}
-
 std::chrono::nanoseconds ToNano(std::int64_t timestamp,
                                 AVRational timeBase,
                                 AVRounding rounding)

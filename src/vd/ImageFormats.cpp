@@ -51,10 +51,10 @@ void WriteJpg(const std::filesystem::path &path,
 
     auto rowSize = Mul(width, 4u);
     auto height = rgbaData.size_bytes() / rowSize;
-
+    auto absolute = std::filesystem::absolute(path);
     auto err =
         stbi_write_jpg(
-            path.string().c_str(),
+            absolute.string().c_str(),
             IntCast<int>(width),
             IntCast<int>(height),
             4,
@@ -75,10 +75,10 @@ void WritePng(const std::filesystem::path &path,
 {
     auto rowSize = Mul(width, 4u);
     auto height = rgbaData.size_bytes() / rowSize;
-
+    auto absolute = std::filesystem::absolute(path);
     auto err =
         stbi_write_png(
-            path.string().c_str(),
+            absolute.string().c_str(),
             IntCast<int>(width),
             IntCast<int>(height),
             4,

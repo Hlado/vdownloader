@@ -11,8 +11,8 @@ if __name__ == "__main__":
     
     benchmarking.run_benchmark(
         [
+            benchmarking.vdownloader_command(path = sys.argv[1], url = file_url),
             benchmarking.vdownloader_command(path = sys.argv[1], url = file_url, options = ["-t", "0"]),
-            benchmarking.vdownloader_command(path = sys.argv[1], url = file_url, options = ["-t", "8"]),
-            benchmarking.vdownloader_command(path = sys.argv[1], url = file_url, options = ["-t", "16"])
+            benchmarking.vdownloader_command(path = sys.argv[1], url = file_url, options = ["-t", "8"])
         ],
         times = sys.argv[4])

@@ -71,13 +71,13 @@ Image ToImage(const AVFrame &frame, AVPixelFormat format)
     auto rowSize = IntCast<std::size_t>(converted->width * 4);
     auto dataSize = IntCast<std::size_t>(numPixels * 4);
 
-    std::vector<std::byte> buf(dataSize, (std::byte)0);
+    std::vector<std::byte> buf;
+    buf.reserve(dataSize);
 
     for(int i = 0; i < converted->height; ++i)
     {
-        auto src = converted->data[0] + converted->linesize[0] * i;
-        auto dst = buf.data() + converted->width * i;
-        std::memcpy(dst, src, rowSize);
+        auto src = reinterpret_cast<std::byte *>(converted->data[0] + converted->linesize[0]*i);
+        buf.insert(buf.end(), src, src + rowSize);
     }
 
     return Image{ .data = std::move(buf),

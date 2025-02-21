@@ -59,7 +59,7 @@ private:
 
 class VideoStream;
 using StreamPicker = std::function<std::size_t(std::span<const AVStream * const>)>;
-using ReaderFactory = std::function<std::unique_ptr<LibavReader>()>;
+using ReaderFactory = std::function<std::unique_ptr<libav::Reader>()>;
 
 struct MediaParams final
 {
@@ -121,7 +121,7 @@ private:
 namespace internal
 {
 
-std::unique_ptr<AVFrame, LibavFrameDeleter> ConvertFrame(const AVFrame &frame, AVPixelFormat format);
+libav::UniquePtr<AVFrame> ConvertFrame(const AVFrame &frame, AVPixelFormat format);
 //Only ARGB/RGBA is supported
 Image ToImage(const AVFrame &frame, AVPixelFormat format);
 

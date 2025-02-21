@@ -184,9 +184,9 @@ VideoStream OpenStream(std::shared_ptr<SourceBase> source,
         [&source]()
         {
             return
-                std::make_unique<LibavReader>(
+                std::make_unique<libav::Reader>(
                     source,
-                    LibavReader::SeekSizeMode::Cache);
+                    libav::Reader::SeekSizeMode::Cache);
         };
 
     return OpenMediaSource(factory, params);
@@ -208,7 +208,8 @@ std::shared_ptr<SourceBase> OpenSource(const Options &options)
 
 bool HasValidExtension(const std::filesystem::path &path)
 {
-    static auto exts = std::unordered_set<std::string>{".tga", ".jpg", ".png"};
+    static const auto exts =
+        std::unordered_set<std::string>{".tga", ".jpg", ".png"};
 
     return path.has_extension() && exts.contains(path.extension().string());
 }

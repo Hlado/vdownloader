@@ -1,10 +1,5 @@
 #include "VideoStream.h"
-
-extern "C"
-{
-#include <libavutil/error.h>
-#include <libswscale/swscale.h>
-}
+#include "Libav.h"
 
 #include <algorithm>
 #include <future>
@@ -14,10 +9,12 @@ extern "C"
 namespace vd
 {
 
+using namespace libav;
+
 namespace internal
 {
 
-std::unique_ptr<AVFrame, LibavFrameDeleter> ConvertFrame(const AVFrame &frame, AVPixelFormat format)
+UniquePtr<AVFrame> ConvertFrame(const AVFrame &frame, AVPixelFormat format)
 {
     auto ctx = sws_getContext(frame.width, frame.height, static_cast<AVPixelFormat>(frame.format),
                               frame.width, frame.height, format,
@@ -29,7 +26,7 @@ std::unique_ptr<AVFrame, LibavFrameDeleter> ConvertFrame(const AVFrame &frame, A
     }
     Defer freeContext([ctx]() { sws_freeContext(ctx); });
 
-    auto res = std::unique_ptr<AVFrame, LibavFrameDeleter>{av_frame_alloc()};
+    auto res = MakeFrame();
     if(!res)
     {
         throw Error{"failed to create frame"};
@@ -146,12 +143,12 @@ Nanoseconds Frame::Duration() const noexcept
 
 struct MediaContext final
 {
-    std::unique_ptr<LibavReader> reader;
-    std::unique_ptr<AVFormatContext, LibavFormatContextDeleter> formatCtx;
-    std::unique_ptr<AVIOContext, LibavIoContextDeleter> ioCtx;
-    std::unique_ptr<AVCodecContext, LibavCodecContextDeleter> codecCtx;
-    std::unique_ptr<AVCodecParserContext, LibavParserContextDeleter> parserCtx;
-    std::unique_ptr<AVPacket, LibavPacketDeleter> packet;
+    std::unique_ptr<Reader> reader;
+    UniquePtr<AVFormatContext> formatCtx;
+    UniquePtr<AVIOContext> ioCtx;
+    UniquePtr<AVCodecContext> codecCtx;
+    UniquePtr<AVCodecParserContext> parserCtx;
+    UniquePtr<AVPacket> packet;
 };
 
 
@@ -167,30 +164,14 @@ MediaParams MediaParams::Default()
 namespace
 {
 
-decltype(auto) CreateIoContext(LibavReader *reader, int bufferSize)
+UniquePtr<AVIOContext> CreateIoContext(Reader *reader, int bufferSize)
 {
-    auto buffer =
-        std::unique_ptr<std::uint8_t, LibavGenericDeleter>(
-            (std::uint8_t *)av_malloc(IntCast<std::size_t>(bufferSize)));
-
-    auto ctx =
-        std::unique_ptr<AVIOContext, LibavIoContextDeleter>(
-            avio_alloc_context(
-                buffer.get(),
-                bufferSize,
-                0,
-                reader,
-                &LibavReader::ReadPacket,
-                nullptr,
-                &LibavReader::Seek));
-
-    if(!ctx)
-    {
-        throw Error{"failed to create AVIOContext"};
-    }
-    buffer.release();
-
-    return ctx;
+    return MakeIoContext(bufferSize,
+                         0,
+                         reader,
+                         &Reader::ReadPacket,
+                         nullptr,
+                         &Reader::Seek);
 }
 
 AVStream &PickStream(AVFormatContext &ctx, const StreamPicker &picker)
@@ -217,28 +198,52 @@ AVStream &PickStream(AVFormatContext &ctx, const StreamPicker &picker)
     return *streams[index];
 }
 
-std::unique_ptr<MediaContext> MakeContext(std::unique_ptr<LibavReader> &&reader, const StreamPicker &picker)
+UniquePtr<AVCodecContext> OpenCodecContext(const AVStream &stream)
 {
-    auto ctx = std::unique_ptr<MediaContext>{new MediaContext{}};
+    auto codec = avcodec_find_decoder(stream.codecpar->codec_id);
+    if(codec == nullptr)
+    {
+        throw Error{Format(R"(can't find decoder for codec "{}")",
+                           std::string(avcodec_get_name(stream.codecpar->codec_id)))};
+    }
+
+    auto res = MakeCodecContext(codec);
+
+    if(auto err = avcodec_parameters_to_context(res.get(), stream.codecpar); err < 0)
+    {
+        throw LibraryCallError{"avcodec_parameters_to_context", err};
+    }
+
+    if(auto err = avcodec_open2(res.get(), res->codec, nullptr); err != 0)
+    {
+        throw LibraryCallError{"avcodec_open2", err};
+    }
+
+    return res;
+}
+
+std::unique_ptr<MediaContext> MakeContext(std::unique_ptr<Reader> &&reader, const StreamPicker &picker)
+{
+    static const int bufferSize = 1 < 15;
 
     if(!reader)
     {
         throw ArgumentError{R"("reader" parameter is null pointer)"};
     }
 
+    auto ctx = std::unique_ptr<MediaContext>{new MediaContext{}};
     ctx->reader = std::move(reader);
 
-    if(ctx->formatCtx.reset(avformat_alloc_context()); !ctx->formatCtx)
-    {
-        throw Error{"failed to create AVFormatContext"};
-    }
+    ctx->formatCtx = MakeFormatContext();
 
-    ctx->ioCtx = CreateIoContext(ctx->reader.get(), 1 << 15);
+    ctx->ioCtx = CreateIoContext(ctx->reader.get(), bufferSize);
     ctx->formatCtx->pb = ctx->ioCtx.get();
 
     AVFormatContext *tmp = ctx->formatCtx.get();
     if(int err = avformat_open_input(&tmp, nullptr, nullptr, nullptr); err < 0)
     {
+        //avformat_open_input frees context on failure, so we have to release to
+        //avoid double deletion
         ctx->formatCtx.release();
         throw LibraryCallError{"avformat_open_input", err};
     }
@@ -257,39 +262,11 @@ std::unique_ptr<MediaContext> MakeContext(std::unique_ptr<LibavReader> &&reader,
         }
     }
 
-    auto codec = avcodec_find_decoder(stream.codecpar->codec_id);
-    if(codec == nullptr)
-    {
-        throw Error{Format(R"(can't find decoder for codec "{}")",
-                           std::string(avcodec_get_name(stream.codecpar->codec_id)))};
-    }
+    ctx->codecCtx = OpenCodecContext(stream);
 
-    if(ctx->codecCtx.reset(avcodec_alloc_context3(codec)); !ctx->codecCtx)
-    {
-        throw Error{Format(R"(failed to create codec context for codec "{}")",
-                           std::string(codec->long_name))};
-    }
+    ctx->parserCtx = MakeParserContext(stream.codecpar->codec_id);
 
-    if(auto err = avcodec_parameters_to_context(ctx->codecCtx.get(), stream.codecpar); err < 0)
-    {
-        throw LibraryCallError{"avcodec_parameters_to_context", err};
-    }
-
-    if(auto err = avcodec_open2(ctx->codecCtx.get(), codec, nullptr); err != 0)
-    {
-        throw LibraryCallError{"avcodec_open2", err};
-    }
-
-    if(ctx->parserCtx.reset(av_parser_init(codec->id)); !ctx->parserCtx)
-    {
-        throw Error{Format(R"(failed to create codec parser context for codec "{}")",
-                           std::string(codec->long_name))};
-    }
-
-    if(ctx->packet.reset(av_packet_alloc()); !ctx->packet)
-    {
-        throw Error{"failed to allocate packet"};
-    }
+    ctx->packet = MakePacket();
 
     return ctx;
 }
@@ -363,11 +340,7 @@ std::optional<Frame> VideoStream::NextFrame(Nanoseconds timestamp)
 
 std::shared_ptr<AVFrame> VideoStream::TakeFrame(MediaContext &ctx)
 {
-    auto frame = std::shared_ptr<AVFrame>{av_frame_alloc(), LibavFrameDeleter{}};
-    if(!frame)
-    {
-        throw Error{"failed to allocate frame"};
-    }
+    auto frame = MakeFrame();
 
     while(true)
     {

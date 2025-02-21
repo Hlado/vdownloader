@@ -1,10 +1,10 @@
 #include "LibavUtils.h"
 #include "Utils.h"
 
-namespace vd
+namespace vd::libav
 {
 
-void LibavCodecContextDeleter::operator()(const AVCodecContext *p) const
+void CodecContextDeleter::operator()(const AVCodecContext *p) const
 {
     if(p != nullptr)
     {
@@ -12,7 +12,7 @@ void LibavCodecContextDeleter::operator()(const AVCodecContext *p) const
     }
 }
 
-void LibavParserContextDeleter::operator()(const AVCodecParserContext *p) const
+void ParserContextDeleter::operator()(const AVCodecParserContext *p) const
 {
     if(p != nullptr)
     {
@@ -20,7 +20,7 @@ void LibavParserContextDeleter::operator()(const AVCodecParserContext *p) const
     }
 }
 
-void LibavPacketDeleter::operator()(const AVPacket *p) const
+void PacketDeleter::operator()(const AVPacket *p) const
 {
     if(p != nullptr)
     {
@@ -28,7 +28,7 @@ void LibavPacketDeleter::operator()(const AVPacket *p) const
     }
 }
 
-void LibavFormatContextDeleter::operator()(const AVFormatContext *p) const
+void FormatContextDeleter::operator()(const AVFormatContext *p) const
 {
     if(p != nullptr)
     {
@@ -36,7 +36,7 @@ void LibavFormatContextDeleter::operator()(const AVFormatContext *p) const
     }
 }
 
-void LibavIoContextDeleter::operator()(const AVIOContext *p) const
+void IoContextDeleter::operator()(const AVIOContext *p) const
 {
     if(p == nullptr)
     {
@@ -50,7 +50,7 @@ void LibavIoContextDeleter::operator()(const AVIOContext *p) const
     av_free(const_cast<AVIOContext *>(p));
 }
 
-void LibavFrameDeleter::operator()(const AVFrame *p) const
+void FrameDeleter::operator()(const AVFrame *p) const
 {
     if(p != nullptr)
     {
@@ -58,7 +58,7 @@ void LibavFrameDeleter::operator()(const AVFrame *p) const
     }
 }
 
-void LibavGenericDeleter::operator()(void *p) const
+void GenericDeleter::operator()(void *p) const
 {
     if(p != nullptr)
     {
@@ -68,8 +68,8 @@ void LibavGenericDeleter::operator()(void *p) const
 
 
 
-LibavReader::LibavReader(std::shared_ptr<SourceBase> source,
-                         SeekSizeMode seekSizeMode)
+Reader::Reader(std::shared_ptr<SourceBase> source,
+               SeekSizeMode seekSizeMode)
     : mSrc{std::move(source)},
       mSeekSizeMode{seekSizeMode}
 {
@@ -84,7 +84,7 @@ LibavReader::LibavReader(std::shared_ptr<SourceBase> source,
     }
 }
 
-int LibavReader::Read(std::span<std::byte> buf)
+int Reader::Read(std::span<std::byte> buf)
 {
     try
     {
@@ -106,7 +106,7 @@ int LibavReader::Read(std::span<std::byte> buf)
     }
 }
 
-std::int64_t LibavReader::Seek(std::int64_t offset, int whence)
+std::int64_t Reader::Seek(std::int64_t offset, int whence)
 {
     try
     {
@@ -152,20 +152,20 @@ std::int64_t LibavReader::Seek(std::int64_t offset, int whence)
     }
 }
 
-int LibavReader::ReadPacket(void *opaque, std::uint8_t *buf, int size)
+int Reader::ReadPacket(void *opaque, std::uint8_t *buf, int size)
 {
-    auto reader = reinterpret_cast<LibavReader *>(opaque);
+    auto reader = reinterpret_cast<Reader *>(opaque);
     auto span = std::span<std::uint8_t>{buf, IntCast<std::size_t>(size)};
     return reader->Read(std::as_writable_bytes(span));
 }
 
-std::int64_t LibavReader::Seek(void *opaque, std::int64_t offset, int whence)
+std::int64_t Reader::Seek(void *opaque, std::int64_t offset, int whence)
 {
-    auto reader = reinterpret_cast<LibavReader *>(opaque);
+    auto reader = reinterpret_cast<Reader *>(opaque);
     return reader->Seek(offset, whence);
 }
 
-std::size_t LibavReader::GetContentLength() const
+std::size_t Reader::GetContentLength() const
 {
     if(mSeekSizeMode == SeekSizeMode::Cache)
     {
@@ -217,6 +217,113 @@ std::int64_t FromNano(std::chrono::nanoseconds timestamp,
     }
 
     return res;
+}
+
+
+
+UniquePtr<AVCodecContext> MakeCodecContext(const AVCodec *codec)
+{
+    auto res = UniquePtr<AVCodecContext>{avcodec_alloc_context3(codec)};
+
+    if(!res)
+    {
+        throw Error{Format(R"(failed to create codec context for codec "{}")",
+                           std::string(codec->long_name))};
+    }
+
+    return res;
+}
+
+UniquePtr<AVCodecParserContext> MakeParserContext(AVCodecID codec_id)
+{
+    auto res = UniquePtr<AVCodecParserContext>{av_parser_init(codec_id)};
+
+    if(!res)
+    {
+        throw Error{Format(R"(failed to create codec parser context for codec "{}")",
+                           std::string(avcodec_get_name(codec_id)))};
+    }
+
+    return res;
+}
+
+UniquePtr<AVPacket> MakePacket()
+{
+    auto res = UniquePtr<AVPacket>{av_packet_alloc()};
+
+    if(!res)
+    {
+        throw Error{"failed to allocate packet"};
+    }
+
+    return res;
+}
+
+UniquePtr<AVFormatContext> MakeFormatContext()
+{
+    auto res = UniquePtr<AVFormatContext>{avformat_alloc_context()};
+
+    if(!res)
+    {
+        throw Error{"failed to create AVFormatContext"};
+    }
+
+    return res;
+}
+
+UniquePtr<AVIOContext> MakeIoContext(
+    int buffer_size,
+    int write_flag,
+    void *opaque,
+    int (*read_packet)(void *opaque, uint8_t *buf, int buf_size),
+    int (*write_packet)(void *opaque, const uint8_t *buf, int buf_size),
+    int64_t (*seek)(void *opaque, int64_t offset, int whence))
+{
+    auto buf = MakeBuffer(IntCast<std::size_t>(buffer_size));
+
+    auto res =
+        UniquePtr<AVIOContext>(
+            avio_alloc_context(
+                buf.get(),
+                buffer_size,
+                write_flag,
+                opaque,
+                read_packet,
+                write_packet,
+                seek));
+
+    if(!res)
+    {
+        throw Error{"failed to create AVIOContext"};
+    }
+    buf.release();
+
+    return res;
+}
+
+UniquePtr<AVFrame> MakeFrame()
+{
+    auto res = UniquePtr<AVFrame>{av_frame_alloc()};
+
+    if(!res)
+    {
+        throw Error{"failed to allocate frame"};
+    }
+
+    return res;
+}
+
+BufferPtr MakeBuffer(std::size_t size)
+{
+    auto buf =
+        BufferPtr((std::uint8_t *)av_malloc(IntCast<std::size_t>(size)));
+
+    if(!buf && size > 0)
+    {
+        throw Error{"failed to allocate buffer with av_malloc"};
+    }
+
+    return buf;
 }
 
 }//namespace vd

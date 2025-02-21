@@ -8,6 +8,7 @@ set(SOURCE_FILES vd/Errors.cpp
 
 set(HEADER_FILES vd/Errors.h
                  vd/ImageFormats.h
+                 vd/Libav.h
                  vd/LibavUtils.h
                  vd/Options.h
                  vd/Preprocessor.h

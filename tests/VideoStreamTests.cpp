@@ -5,6 +5,7 @@
 using namespace std::chrono_literals;
 using namespace vd;
 using namespace vd::internal;
+using namespace vd::libav;
 using namespace vd::literals;
 
 namespace
@@ -22,7 +23,7 @@ class ConvertFrameTestF :
 
 TEST_P(ConvertFrameTestF, BackAndForth)
 {
-    auto frame = std::unique_ptr<AVFrame, LibavFrameDeleter>{av_frame_alloc()};
+    auto frame = std::unique_ptr<AVFrame, FrameDeleter>{av_frame_alloc()};
     ASSERT_TRUE(frame);
 
     frame->format = AV_PIX_FMT_RGBA;
@@ -66,7 +67,7 @@ protected:
                 new Source{FileSource{gSquaresFilePath}}};
         stream =
             OpenMediaSource(
-                [&source]() { return std::make_unique<LibavReader>(source); });
+                [&source]() { return std::make_unique<Reader>(source); });
     }
 
     std::optional<VideoStream> stream;    

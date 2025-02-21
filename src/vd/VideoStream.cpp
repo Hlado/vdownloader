@@ -52,7 +52,7 @@ UniquePtr<AVFrame> ConvertFrame(const AVFrame &frame, AVPixelFormat format)
 }
 
 //Only ARGB/RGBA is supported
-Image ToImage(const AVFrame &frame, AVPixelFormat format)
+Rgb32Image ToImage(const AVFrame &frame, AVPixelFormat format)
 {
     if(format != AV_PIX_FMT_ARGB &&
            format != AV_PIX_FMT_RGBA &&
@@ -64,22 +64,17 @@ Image ToImage(const AVFrame &frame, AVPixelFormat format)
 
     auto converted = ConvertFrame(frame, format);
 
-    auto numPixels = converted->width * converted->height;
-    auto rowSize = IntCast<std::size_t>(converted->width * 4);
-    auto dataSize = IntCast<std::size_t>(numPixels * 4);
-
-    std::vector<std::byte> buf;
-    buf.reserve(dataSize);
+    auto image = Rgb32Image{IntCast<std::size_t>(converted->width),
+                            IntCast<std::size_t>(converted->height)};
 
     for(int i = 0; i < converted->height; ++i)
     {
-        auto src = reinterpret_cast<std::byte *>(converted->data[0] + converted->linesize[0]*i);
-        buf.insert(buf.end(), src, src + rowSize);
+        auto src = converted->data[0] + converted->linesize[0]*i;
+        auto dst = image.Data().data() + image.RowSize()*i;
+        std::memcpy(dst, src, image.RowSize());
     }
 
-    return Image{ .data = std::move(buf),
-                  .width = IntCast<std::size_t>(converted->width),
-                  .height = IntCast<std::size_t>(converted->height)};
+    return image;
 }
 
 }//namespace internal
@@ -114,17 +109,17 @@ Frame Frame::Create(std::shared_ptr<const AVFrame> rawFrame,
                  ToNano(rawFrame->duration, timeBase, AV_ROUND_INF));
 }
 
-Image Frame::ArgbImage() const
+Rgb32Image Frame::ArgbImage() const
 {
     return ToImage(*mFrame, AV_PIX_FMT_ARGB);
 }
 
-Image Frame::RgbaImage() const
+Rgb32Image Frame::RgbaImage() const
 {
     return ToImage(*mFrame, AV_PIX_FMT_RGBA);
 }
 
-Image Frame::BgraImage() const
+Rgb32Image Frame::BgraImage() const
 {
     return ToImage(*mFrame, AV_PIX_FMT_BGRA);
 }

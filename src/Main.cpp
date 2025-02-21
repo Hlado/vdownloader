@@ -224,17 +224,17 @@ void SaveFrame(std::filesystem::path path, const Frame &frame)
     if(path.extension() == ".tga")
     {
         auto image = frame.BgraImage();
-        WriteTga(path, image.data, image.width);
+        WriteTga(path, image);
     }
     else if(path.extension() == ".png")
     {
         auto image = frame.RgbaImage();
-        WritePng(path, image.data, image.width);
+        WritePng(path, image);
     }
     else
     {
         auto image = frame.RgbaImage();
-        WriteJpg(path, image.data, image.width);
+        WriteJpg(path, image);
     }
 }
 

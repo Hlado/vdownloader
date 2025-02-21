@@ -3,6 +3,7 @@
 
 #include "LibavUtils.h"
 #include "Sources.h"
+#include "VideoUtils.h"
 
 #include <chrono>
 #include <deque>
@@ -13,20 +14,6 @@
 
 namespace vd
 {
-
-using Nanoseconds = std::chrono::nanoseconds;
-
-
-
-
-struct Image final
-{
-    std::vector<std::byte> data;
-    std::size_t width;
-    std::size_t height;
-};
-
-
 
 class Frame final
 {
@@ -40,9 +27,9 @@ public:
     static Frame Create(std::shared_ptr<const AVFrame> rawFrame,
                         AVRational timeBase);
 
-    Image ArgbImage() const;
-    Image BgraImage() const;
-    Image RgbaImage() const;
+    Rgb32Image ArgbImage() const;
+    Rgb32Image BgraImage() const;
+    Rgb32Image RgbaImage() const;
 
     //Equal to Frame::sentinelTs when unknown
     Nanoseconds Timestamp() const noexcept;
@@ -123,7 +110,7 @@ namespace internal
 
 libav::UniquePtr<AVFrame> ConvertFrame(const AVFrame &frame, AVPixelFormat format);
 //Only ARGB/RGBA is supported
-Image ToImage(const AVFrame &frame, AVPixelFormat format);
+Rgb32Image ToImage(const AVFrame &frame, AVPixelFormat format);
 
 }//namespace internal
 

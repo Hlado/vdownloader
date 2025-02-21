@@ -1,5 +1,7 @@
-#ifndef VD_PNG_H_
-#define VD_PNG_H_
+#ifndef VD_IMAGE_FORMATS_H_
+#define VD_IMAGE_FORMATS_H_
+
+#include "VideoUtils.h"
 
 #include <filesystem>
 #include <span>
@@ -10,23 +12,19 @@ namespace vd
 
 //Writes pixels in RGBA format
 void WriteJpg(const std::filesystem::path &path,
-              std::span<const std::byte> rgbaData,
-              std::size_t width,
+              const Rgb32Image &rgbaImage,
               std::uint8_t quality = 90);
 
 //Writes pixels in RGBA format
 void WritePng(const std::filesystem::path &path,
-              std::span<const std::byte> rgbaData,
-              std::size_t width);
+              const Rgb32Image &rgbaImage);
 
 //Writes pixels as is, so pixels representation must be BGRA
 void WriteTga(std::ostream &stream,
-              std::span<const std::byte> bgraData,
-              std::size_t width);
+              const Rgb32Image &bgraImage);
 void WriteTga(const std::filesystem::path &path,
-              std::span<const std::byte> bgraData,
-              std::size_t width);
+              const Rgb32Image &bgraImage);
 
 }//namespace vd
 
-#endif //VD_PNG_H_
+#endif //VD_IMAGE_FORMATS_H_

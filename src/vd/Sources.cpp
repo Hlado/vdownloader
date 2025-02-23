@@ -27,7 +27,11 @@ void AssertRangeCorrect(
 
 std::string_view ExtractAddress(std::string_view url)
 {
-    auto parsed = ada::parse(std::string{url});
+    auto parsed = ada::parse(url);
+    if(!parsed.has_value())
+    {
+        throw ArgumentError{std::format(R"("{}" is not a valid url)", url)};
+    }
 
     //Although it's weird to have colon included in protocol, it's not ada's
     //unique behaviour and google know other cases, so we leave it as is for now
@@ -43,8 +47,13 @@ std::string_view ExtractAddress(std::string_view url)
 
 std::string_view ExtractPathAndQuery(std::string_view url)
 {
-    auto components = ada::parse(std::string{url})->get_components();
-    
+    auto parsed = ada::parse(url);
+    if(!parsed.has_value())
+    {
+        throw ArgumentError{std::format(R"("{}" is not a valid url)", url)};
+    }
+
+    auto components = parsed->get_components();
     if(components.pathname_start >= url.size())
     {
         return "/";

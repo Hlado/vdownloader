@@ -63,7 +63,7 @@ class ConvertFrameTestF :
 
 TEST_P(ConvertFrameTestF, BackAndForth)
 {
-    auto frame = RgbaToFrame(FilledRgbaImage(25, 25, {123, 123, 123, 255}));
+    auto frame = RgbaToFrame(FilledRgbaImage(20, 20, {123, 123, 123, 255}));
 
     auto forth = ConvertFrame(*frame, GetParam());
     auto back = ConvertFrame(*forth, AV_PIX_FMT_RGBA);

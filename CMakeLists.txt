@@ -26,3 +26,5 @@ if(BUILD_TESTING)
 endif()
 
 add_subdirectory(benchmarking)
+
+include(cmake/valgrind.cmake)

@@ -31,6 +31,18 @@
         "VCPKG_TARGET_TRIPLET": "x64-windows-static-md-release",
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "ci_valgrind",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "installDir": "${sourceDir}/install",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-linux",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_FLAGS_INIT": "-m64 -g"
+      }
     }
   ],
   "buildPresets": [
@@ -41,6 +53,10 @@
     {
       "name": "ci_windows",
       "configurePreset": "ci_windows"
+    },
+    {
+      "name": "ci_valgrind",
+      "configurePreset": "ci_valgrind"
     }
   ]
 }

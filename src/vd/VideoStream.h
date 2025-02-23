@@ -3,6 +3,7 @@
 
 #include "LibavUtils.h"
 #include "Sources.h"
+#include "VideoUtils.h"
 
 #include <chrono>
 #include <deque>
@@ -14,20 +15,6 @@
 namespace vd
 {
 
-using Nanoseconds = std::chrono::nanoseconds;
-
-
-
-
-struct Image final
-{
-    std::vector<std::byte> data;
-    std::size_t width;
-    std::size_t height;
-};
-
-
-
 class Frame final
 {
 public:
@@ -36,13 +23,12 @@ public:
     Frame(std::shared_ptr<const AVFrame> rawFrame,
           Nanoseconds timestamp,
           Nanoseconds duration);
+    Frame(std::shared_ptr<const AVFrame> rawFrame,
+          AVRational timeBase);
 
-    static Frame Create(std::shared_ptr<const AVFrame> rawFrame,
-                        AVRational timeBase);
-
-    Image ArgbImage() const;
-    Image BgraImage() const;
-    Image RgbaImage() const;
+    Rgb32Image ArgbImage() const;
+    Rgb32Image BgraImage() const;
+    Rgb32Image RgbaImage() const;
 
     //Equal to Frame::sentinelTs when unknown
     Nanoseconds Timestamp() const noexcept;
@@ -59,19 +45,16 @@ private:
 
 class VideoStream;
 using StreamPicker = std::function<std::size_t(std::span<const AVStream * const>)>;
-using ReaderFactory = std::function<std::unique_ptr<LibavReader>()>;
+using ReaderFactory = std::function<std::unique_ptr<libav::Reader>()>;
 
-struct MediaParams final
+struct OpeningParams final
 {
-    StreamPicker picker;
-    bool skipNonRef;
-
-    //Picks first stream, no skipping allowed
-    static MediaParams Default();
+    StreamPicker picker = [](auto) { return 0; };
+    bool skipNonRef{false};
 };
 
 VideoStream OpenMediaSource(ReaderFactory readerFactory,
-                            MediaParams params = MediaParams::Default());
+                            OpeningParams params = OpeningParams{});
 
 
 
@@ -80,13 +63,12 @@ struct MediaContext;
 class VideoStream final
 {
     friend VideoStream OpenMediaSource(ReaderFactory readerFactory,
-                                       MediaParams params);
+                                       OpeningParams params);
 
 private:
     VideoStream(std::unique_ptr<MediaContext> activeContext,
                 std::unique_ptr<MediaContext> seekingContext,
-                AVStream &stream,
-                bool skipNonRef = false);
+                AVStream &stream);
 
 public:
     VideoStream(const VideoStream &other) = delete;
@@ -112,7 +94,7 @@ private:
 
     std::shared_ptr<AVFrame> ReturnFrame();
     std::shared_ptr<AVFrame> SeekAndReturnFrame(Nanoseconds timestamp);
-    std::shared_ptr<AVFrame> DropFramesUntilTimestamp(std::shared_ptr<AVFrame> currentFrame,
+    std::shared_ptr<AVFrame> DropFramesUntilTimestamp(std::shared_ptr<AVFrame> frame,
                                                       std::int64_t target);
 };
 
@@ -121,9 +103,9 @@ private:
 namespace internal
 {
 
-std::unique_ptr<AVFrame, LibavFrameDeleter> ConvertFrame(const AVFrame &frame, AVPixelFormat format);
+libav::UniquePtr<AVFrame> ConvertFrame(const AVFrame &frame, AVPixelFormat format);
 //Only ARGB/RGBA is supported
-Image ToImage(const AVFrame &frame, AVPixelFormat format);
+Rgb32Image ToImage(const AVFrame &frame, AVPixelFormat format);
 
 }//namespace internal
 

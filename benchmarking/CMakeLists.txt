@@ -7,7 +7,6 @@ set(${PROJECT_NAME}_BENCMARKING_URL "https://www.youtube.com/watch?v=aqz-KE-bpKQ
 set(${PROJECT_NAME}_BENCMARKING_YT_FORMAT 299 CACHE STRING "Format to request from youtube")
 set(${PROJECT_NAME}_BENCMARKING_RUNS 3 CACHE STRING "Number of runs")
 set(${PROJECT_NAME}_BENCMARKING_REFERENCE_PATH "$<TARGET_FILE:${PROJECT_NAME}>" CACHE FILEPATH "Path to reference version of app")
-set(${PROJECT_NAME}_BENCMARKING_REFERENCE_PATH "$<TARGET_FILE:${PROJECT_NAME}>" CACHE FILEPATH "Path to reference version of app")
 set(${PROJECT_NAME}_BENCMARKING_REFERENCE_ARGS "" CACHE STRING "Args for reference version of app")
 set(${PROJECT_NAME}_BENCMARKING_DEV_ARGS "" CACHE STRING "Args for dev version for single run or reference benchmark")
 

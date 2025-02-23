@@ -1,10 +1,5 @@
 #include "VideoStream.h"
-
-extern "C"
-{
-#include <libavutil/error.h>
-#include <libswscale/swscale.h>
-}
+#include "Libav.h"
 
 #include <algorithm>
 #include <future>
@@ -14,76 +9,14 @@ extern "C"
 namespace vd
 {
 
+using namespace libav;
+
 namespace internal
 {
 
-std::unique_ptr<AVFrame, LibavFrameDeleter> ConvertFrame(const AVFrame &frame, AVPixelFormat format)
-{
-    auto ctx = sws_getContext(frame.width, frame.height, static_cast<AVPixelFormat>(frame.format),
-                              frame.width, frame.height, format,
-                              SWS_ACCURATE_RND & SWS_FULL_CHR_H_INT,
-                              NULL, NULL, NULL);
-    if(ctx == nullptr)
-    {
-        throw Error{"failed to create sws context"};
-    }
-    Defer freeContext([ctx]() { sws_freeContext(ctx); });
-
-    auto res = std::unique_ptr<AVFrame, LibavFrameDeleter>{av_frame_alloc()};
-    if(!res)
-    {
-        throw Error{"failed to create frame"};
-    }
-
-    res->format = format;
-    res->width = frame.width;
-    res->height = frame.height;
-    if(auto err = av_frame_get_buffer(res.get(), 0); err != 0)
-    {
-        throw LibraryCallError{"av_frame_get_buffer", err};
-    }
-
-    sws_scale(ctx,
-              frame.data,
-              frame.linesize,
-              0,
-              frame.height,
-              res->data,
-              res->linesize);
-
-    return res;
-}
-
+UniquePtr<AVFrame> ConvertFrame(const AVFrame &frame, AVPixelFormat format);
 //Only ARGB/RGBA is supported
-Image ToImage(const AVFrame &frame, AVPixelFormat format)
-{
-    if(format != AV_PIX_FMT_ARGB &&
-           format != AV_PIX_FMT_RGBA &&
-           format != AV_PIX_FMT_BGRA)
-    {
-        throw ArgumentError{Format(R"(argument "format"({}) is not supported)",
-                                   static_cast<int>(format))};
-    }
-
-    auto converted = ConvertFrame(frame, format);
-
-    auto numPixels = converted->width * converted->height;
-    auto rowSize = IntCast<std::size_t>(converted->width * 4);
-    auto dataSize = IntCast<std::size_t>(numPixels * 4);
-
-    std::vector<std::byte> buf(dataSize, (std::byte)0);
-
-    for(int i = 0; i < converted->height; ++i)
-    {
-        auto src = converted->data[0] + converted->linesize[0] * i;
-        auto dst = buf.data() + converted->width * i;
-        std::memcpy(dst, src, rowSize);
-    }
-
-    return Image{ .data = std::move(buf),
-                  .width = IntCast<std::size_t>(converted->width),
-                  .height = IntCast<std::size_t>(converted->height)};
-}
+Rgb32Image ToImage(const AVFrame &frame, AVPixelFormat format);
 
 }//namespace internal
 
@@ -101,33 +34,32 @@ Frame::Frame(std::shared_ptr<const AVFrame> rawFrame,
 
 }
 
-Frame Frame::Create(std::shared_ptr<const AVFrame> rawFrame,
-                    AVRational timeBase)
+Frame::Frame(std::shared_ptr<const AVFrame> rawFrame,
+             AVRational timeBase)
+    : mFrame(std::move(rawFrame)),
+      mTimestamp(sentinelTs)
 {
     //Logic behind rounding here is that we don't want frame to be presented
     //later than original and it's duration to be less than original
-    Nanoseconds timestamp = sentinelTs;
-    if(rawFrame->pts != AV_NOPTS_VALUE)
+    if(mFrame->pts != AV_NOPTS_VALUE)
     {
-        timestamp = ToNano(rawFrame->pts, timeBase, AV_ROUND_ZERO);
+        mTimestamp = ToNano(mFrame->pts, timeBase, AV_ROUND_ZERO);
     }
 
-    return Frame(std::move(rawFrame),
-                 timestamp,
-                 ToNano(rawFrame->duration, timeBase, AV_ROUND_INF));
+    mDuration = ToNano(mFrame->duration, timeBase, AV_ROUND_INF);
 }
 
-Image Frame::ArgbImage() const
+Rgb32Image Frame::ArgbImage() const
 {
     return ToImage(*mFrame, AV_PIX_FMT_ARGB);
 }
 
-Image Frame::RgbaImage() const
+Rgb32Image Frame::RgbaImage() const
 {
     return ToImage(*mFrame, AV_PIX_FMT_RGBA);
 }
 
-Image Frame::BgraImage() const
+Rgb32Image Frame::BgraImage() const
 {
     return ToImage(*mFrame, AV_PIX_FMT_BGRA);
 }
@@ -146,196 +78,56 @@ Nanoseconds Frame::Duration() const noexcept
 
 struct MediaContext final
 {
-    std::unique_ptr<LibavReader> reader;
-    std::unique_ptr<AVFormatContext, LibavFormatContextDeleter> formatCtx;
-    std::unique_ptr<AVIOContext, LibavIoContextDeleter> ioCtx;
-    std::unique_ptr<AVCodecContext, LibavCodecContextDeleter> codecCtx;
-    std::unique_ptr<AVCodecParserContext, LibavParserContextDeleter> parserCtx;
-    std::unique_ptr<AVPacket, LibavPacketDeleter> packet;
+    std::unique_ptr<Reader> reader;
+    UniquePtr<AVFormatContext> formatCtx;
+    UniquePtr<AVIOContext> ioCtx;
+    UniquePtr<AVCodecContext> codecCtx;
+    UniquePtr<AVCodecParserContext> parserCtx;
+    UniquePtr<AVPacket> packet;
 };
-
-
-
-MediaParams MediaParams::Default()
-{
-    return MediaParams{ .picker = [](auto) { return 0; },
-                        .skipNonRef = false};
-}
-
-
 
 namespace
 {
 
-decltype(auto) CreateIoContext(LibavReader *reader, int bufferSize)
-{
-    auto buffer =
-        std::unique_ptr<std::uint8_t, LibavGenericDeleter>(
-            (std::uint8_t *)av_malloc(IntCast<std::size_t>(bufferSize)));
+std::pair<std::unique_ptr<MediaContext>, AVStream *>
+    CreateMediaContext(std::unique_ptr<Reader> &&reader,
+                       const StreamPicker &picker,
+                       bool skipNonRef);
+void AssertPtsIsSet(const AVFrame &frame);
+void AssertNextPtsIsNotLess(const AVFrame &l, const AVFrame &r);
 
-    auto ctx =
-        std::unique_ptr<AVIOContext, LibavIoContextDeleter>(
-            avio_alloc_context(
-                buffer.get(),
-                bufferSize,
-                0,
-                reader,
-                &LibavReader::ReadPacket,
-                nullptr,
-                &LibavReader::Seek));
-
-    if(!ctx)
-    {
-        throw Error{"failed to create AVIOContext"};
-    }
-    buffer.release();
-
-    return ctx;
-}
-
-AVStream &PickStream(AVFormatContext &ctx, const StreamPicker &picker)
-{
-    using namespace std::views;
-
-    std::vector<AVStream *> streams;
-    for(unsigned int i = 0; i < ctx.nb_streams; ++i)
-    {
-        if(ctx.streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
-        {
-            streams.push_back(ctx.streams[i]);
-        }
-    }
-
-    auto index = picker(streams);
-    if(index >= streams.size())
-    {
-        throw RangeError{Format("stream {} is requested, but media source contains only {}",
-                                index,
-                                streams.size())};
-    }
-
-    return *streams[index];
-}
-
-std::unique_ptr<MediaContext> MakeContext(std::unique_ptr<LibavReader> &&reader, const StreamPicker &picker)
-{
-    auto ctx = std::unique_ptr<MediaContext>{new MediaContext{}};
-
-    if(!reader)
-    {
-        throw ArgumentError{R"("reader" parameter is null pointer)"};
-    }
-
-    ctx->reader = std::move(reader);
-
-    if(ctx->formatCtx.reset(avformat_alloc_context()); !ctx->formatCtx)
-    {
-        throw Error{"failed to create AVFormatContext"};
-    }
-
-    ctx->ioCtx = CreateIoContext(ctx->reader.get(), 1 << 15);
-    ctx->formatCtx->pb = ctx->ioCtx.get();
-
-    AVFormatContext *tmp = ctx->formatCtx.get();
-    if(int err = avformat_open_input(&tmp, nullptr, nullptr, nullptr); err < 0)
-    {
-        ctx->formatCtx.release();
-        throw LibraryCallError{"avformat_open_input", err};
-    }
-
-    if(int err = avformat_find_stream_info(ctx->formatCtx.get(), nullptr); err < 0)
-    {
-        throw LibraryCallError{"avformat_find_stream_info", err};
-    }
-
-    auto &stream = PickStream(*ctx->formatCtx, picker);
-    for(auto s : std::span(ctx->formatCtx->streams, ctx->formatCtx->nb_streams))
-    {
-        if(s->index != stream.index)
-        {
-            s->discard = AVDISCARD_ALL;
-        }
-    }
-
-    auto codec = avcodec_find_decoder(stream.codecpar->codec_id);
-    if(codec == nullptr)
-    {
-        throw Error{Format(R"(can't find decoder for codec "{}")",
-                           std::string(avcodec_get_name(stream.codecpar->codec_id)))};
-    }
-
-    if(ctx->codecCtx.reset(avcodec_alloc_context3(codec)); !ctx->codecCtx)
-    {
-        throw Error{Format(R"(failed to create codec context for codec "{}")",
-                           std::string(codec->long_name))};
-    }
-
-    if(auto err = avcodec_parameters_to_context(ctx->codecCtx.get(), stream.codecpar); err < 0)
-    {
-        throw LibraryCallError{"avcodec_parameters_to_context", err};
-    }
-
-    if(auto err = avcodec_open2(ctx->codecCtx.get(), codec, nullptr); err != 0)
-    {
-        throw LibraryCallError{"avcodec_open2", err};
-    }
-
-    if(ctx->parserCtx.reset(av_parser_init(codec->id)); !ctx->parserCtx)
-    {
-        throw Error{Format(R"(failed to create codec parser context for codec "{}")",
-                           std::string(codec->long_name))};
-    }
-
-    if(ctx->packet.reset(av_packet_alloc()); !ctx->packet)
-    {
-        throw Error{"failed to allocate packet"};
-    }
-
-    return ctx;
-}
-
-void AssertPtsIsSet(const AVFrame &frame)
-{
-    if(frame.pts == AV_NOPTS_VALUE)
-    {
-        throw Error{"frame pts is not set, seeking is impossible"};
-    }
-}
-
-} //unnamed namespace
+}//unnamed namespace
 
 
 
 VideoStream OpenMediaSource(ReaderFactory readerFactory,
-                            MediaParams params)
+                            OpeningParams params)
 {
 
     using namespace std::ranges::views;
 
-    auto activeCtx = MakeContext(readerFactory(), params.picker);
+    auto [activeCtx, stream] = CreateMediaContext(readerFactory(), params.picker, params.skipNonRef);
 
-    auto streams = std::span<AVStream *>(activeCtx->formatCtx->streams,
-                                         activeCtx->formatCtx->nb_streams);
-    auto stream = *(streams | filter([](auto s) { return s->codecpar->codec_type == AVMEDIA_TYPE_VIDEO; })).begin();
-
-    auto seekingCtx = MakeContext(readerFactory(), [stream](auto) { return stream->index; });
+    auto picker =
+        [&stream](auto)
+        {
+            return IntCast<std::size_t>(stream->index);
+        };
+    auto [seekingCtx, unused] = CreateMediaContext(readerFactory(), picker, params.skipNonRef);
 
     return VideoStream{std::move(activeCtx), std::move(seekingCtx), *stream};
 }
 
+
+
 VideoStream::VideoStream(std::unique_ptr<MediaContext> activeContext,
                          std::unique_ptr<MediaContext> seekingContext,
-                         AVStream &stream,
-                         bool skipNonRef)
+                         AVStream &stream)
     : mActiveCtx(std::move(activeContext)),
       mSeekingCtx(std::move(seekingContext)),
       mStream(stream)
 {
-    if(skipNonRef)
-    {
-        mActiveCtx->codecCtx->skip_frame = AVDISCARD_NONREF;
-        mSeekingCtx->codecCtx->skip_frame = AVDISCARD_NONREF;
-    }
+
 }
 
 VideoStream::VideoStream(VideoStream &&other) = default;
@@ -358,16 +150,12 @@ std::optional<Frame> VideoStream::NextFrame(Nanoseconds timestamp)
         return std::nullopt;
     }
 
-    return Frame::Create(std::move(frame), mStream.get().time_base);
+    return Frame{std::move(frame), mStream.get().time_base};
 }
 
 std::shared_ptr<AVFrame> VideoStream::TakeFrame(MediaContext &ctx)
 {
-    auto frame = std::shared_ptr<AVFrame>{av_frame_alloc(), LibavFrameDeleter{}};
-    if(!frame)
-    {
-        throw Error{"failed to allocate frame"};
-    }
+    auto frame = MakeFrame();
 
     while(true)
     {
@@ -455,7 +243,6 @@ std::shared_ptr<AVFrame> VideoStream::SeekAndReturnFrame(Nanoseconds timestamp)
     auto &stream = mStream.get();
 
     auto target = FromNano(timestamp, stream.time_base, AV_ROUND_ZERO);
-
     if(target > stream.duration)
     {
         throw RangeError{"attempted seeking past the end of stream"};
@@ -465,7 +252,7 @@ std::shared_ptr<AVFrame> VideoStream::SeekAndReturnFrame(Nanoseconds timestamp)
     if(stream.start_time != AV_NOPTS_VALUE)
     {
         //It's not clear for what type of streams it may be the case,
-        //probably it's better to throw but for our use case it must
+        //probably it's better to throw, but for our use case it must
         //be impossible
         startTime = stream.start_time;
     }
@@ -484,7 +271,8 @@ std::shared_ptr<AVFrame> VideoStream::SeekAndReturnFrame(Nanoseconds timestamp)
 
         if(!frame)
         {
-            //Again that means bug in libav likely
+            //That means bug in libav likely,
+            //if it returns nothing after seeking successfully
             mLastReturnedFrame.reset();
             mFramesQueue.clear();
             return nullptr;
@@ -501,11 +289,15 @@ std::shared_ptr<AVFrame> VideoStream::SeekAndReturnFrame(Nanoseconds timestamp)
 
             return DropFramesUntilTimestamp(std::move(frame), target);
         } else {
-            //Just skip frames till we get requested, but first put last returned frame into queue
+            //Just skip frames till we get requested one,
+            //but first put last returned frame into queue,
+            //because when there is repeated seeking to the same position,
+            //it will be the one requested
             mFramesQueue.push_front(std::move(mLastReturnedFrame));
 
-            //Actually, at this point we probably already have needed frame in queue but
-            //for simplicity of code we do little unnecessary (possibly) work here
+            //Actually, at this point we probably already have requested frame
+            //in queue but for simplicity of code we do little probably
+            //unnecessary work here
             frame = TakeFrame(*mActiveCtx);
 
             return DropFramesUntilTimestamp(std::move(frame), target);
@@ -514,11 +306,9 @@ std::shared_ptr<AVFrame> VideoStream::SeekAndReturnFrame(Nanoseconds timestamp)
 }
 
 std::shared_ptr<AVFrame>
-    VideoStream::DropFramesUntilTimestamp(std::shared_ptr<AVFrame> currentFrame,
+    VideoStream::DropFramesUntilTimestamp(std::shared_ptr<AVFrame> frame,
                                           std::int64_t target)
 {
-    auto frame = std::move(currentFrame);
-
     while(true)
     {
         if(!frame)
@@ -527,6 +317,10 @@ std::shared_ptr<AVFrame>
         }
 
         AssertPtsIsSet(*frame);
+        if(!mFramesQueue.empty())
+        {
+            AssertNextPtsIsNotLess(*mFramesQueue.back(), *frame);
+        }
 
         mFramesQueue.push_back(frame);
 
@@ -547,21 +341,25 @@ std::shared_ptr<AVFrame>
         frame = TakeFrame(*mActiveCtx);
     }
 
-    //Possibilities here - empty queue, it means there is a bug in libav likely,
-    //but we don't care and pretend there is no more frames
-    //
-    //Or if queue is not empty, there is also 2 possibilities, first is that
-    //last added frame is before target - it means we requested seek near the
-    //end and we must clear queue and return that last frame or
+    //Possibilities here:
     // 
-    //We found frame with pts >= target, then we return first frame from
-    //end with pts <= target (it may be last or second to last) and clear queue
-    //up to this frame (inclusive)
+    //1) Empty queue. It means that first frame taken after seeking has greater
+    //timestamp or there wasn't frame at all. In any case it's bug and throw is
+    //the best option.
+    //
+    //2) Queue is not empty and latest frame in it is before target. It means
+    //that requested seeking timestamp is past last frame but before stream
+    //ending and we must clear queue and return last frame
+    // 
+    //3) Queue is not empty and latest frame in it has timestamp greater or
+    //equal to requested timestamp, it means that we return first frame from the
+    //end which has pts less or equal to target (last or next to last always)
     if(mFramesQueue.empty())
     {
-        return nullptr;
+        throw NotFoundError{"no acceptable frame was found"};
     } else {
-        //It's guaranteed that all items in queue have pts set
+        //It's guaranteed that all items in queue have pts set and pts of
+        //subsequent frame is not less
         if(mFramesQueue.back()->pts < target)
         {
             mLastReturnedFrame = std::move(mFramesQueue.back());
@@ -577,5 +375,225 @@ std::shared_ptr<AVFrame>
         }
     }
 }
+
+
+
+namespace
+{
+
+UniquePtr<AVIOContext> CreateIoContext(Reader *reader, int bufferSize)
+{
+    return MakeIoContext(bufferSize,
+                         0,
+                         reader,
+                         &Reader::ReadPacket,
+                         nullptr,
+                         &Reader::Seek);
+}
+
+UniquePtr<AVFormatContext> CreateFormatContext(AVIOContext *ioCtx)
+{
+    auto res = MakeFormatContext();
+    res->pb = ioCtx;
+
+    AVFormatContext *tmp = res.get();
+    if(int err = avformat_open_input(&tmp, nullptr, nullptr, nullptr); err < 0)
+    {
+        //avformat_open_input frees context on failure, so we have to release to
+        //avoid double deletion
+        res.release();
+        throw LibraryCallError{"avformat_open_input", err};
+    }
+
+    if(int err = avformat_find_stream_info(res.get(), nullptr); err < 0)
+    {
+        throw LibraryCallError{"avformat_find_stream_info", err};
+    }
+
+    return res;
+}
+
+AVStream &PickStream(AVFormatContext &ctx, const StreamPicker &picker)
+{
+    using namespace std::views;
+
+    std::vector<AVStream *> streams;
+    for(unsigned int i = 0; i < ctx.nb_streams; ++i)
+    {
+        if(ctx.streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
+        {
+            streams.push_back(ctx.streams[i]);
+        }
+    }
+
+    auto index = picker(streams);
+    if(index >= streams.size())
+    {
+        throw RangeError{Format("stream {} is requested, but media source contains only {}",
+                                index,
+                                streams.size())};
+    }
+
+    return *streams[index];
+}
+
+UniquePtr<AVCodecContext> CreateCodecContext(const AVStream &stream)
+{
+    auto codec = avcodec_find_decoder(stream.codecpar->codec_id);
+    if(codec == nullptr)
+    {
+        throw Error{Format(R"(can't find decoder for codec "{}")",
+                           std::string(avcodec_get_name(stream.codecpar->codec_id)))};
+    }
+
+    auto res = MakeCodecContext(codec);
+
+    if(auto err = avcodec_parameters_to_context(res.get(), stream.codecpar); err < 0)
+    {
+        throw LibraryCallError{"avcodec_parameters_to_context", err};
+    }
+
+    if(auto err = avcodec_open2(res.get(), res->codec, nullptr); err != 0)
+    {
+        throw LibraryCallError{"avcodec_open2", err};
+    }
+
+    return res;
+}
+
+std::pair<std::unique_ptr<MediaContext>, AVStream *>
+    CreateMediaContext(std::unique_ptr<Reader> &&reader,
+                       const StreamPicker &picker,
+                       bool skipNonRef)
+{
+    static const int bufferSize = 1 < 15;
+
+    if(!reader)
+    {
+        throw ArgumentError{R"("reader" parameter is null pointer)"};
+    }
+
+    auto ctx = std::make_unique<MediaContext>();
+    ctx->reader = std::move(reader);
+
+    ctx->ioCtx = CreateIoContext(ctx->reader.get(), bufferSize);
+    ctx->formatCtx = CreateFormatContext(ctx->ioCtx.get());
+
+    auto &stream = PickStream(*ctx->formatCtx, picker);
+    for(auto s : std::span(ctx->formatCtx->streams, ctx->formatCtx->nb_streams))
+    {
+        if(s->index != stream.index)
+        {
+            s->discard = AVDISCARD_ALL;
+        }
+    }
+
+    ctx->codecCtx = CreateCodecContext(stream);
+    if(skipNonRef)
+    {
+        ctx->codecCtx->skip_frame = AVDISCARD_NONREF;
+    }
+
+    ctx->parserCtx = MakeParserContext(stream.codecpar->codec_id);
+    ctx->packet = MakePacket();
+
+    return {std::move(ctx), &stream};
+}
+
+void AssertPtsIsSet(const AVFrame &frame)
+{
+    if(frame.pts == AV_NOPTS_VALUE)
+    {
+        throw Error{"frame pts is not set, seeking is impossible"};
+    }
+}
+
+void AssertNextPtsIsNotLess(const AVFrame &cur, const AVFrame &next)
+{
+    if(cur.pts > next.pts)
+    {
+        throw Error{"next frame timestamp is lesser than current"};
+    }
+}
+
+} //unnamed namespace
+
+
+
+namespace internal
+{
+
+UniquePtr<AVFrame> ConvertFrame(const AVFrame &frame, AVPixelFormat format)
+{
+    auto ctx = sws_getContext(frame.width, frame.height,
+                              static_cast<AVPixelFormat>(frame.format),
+                              frame.width, frame.height,
+                              format,
+                              SWS_ACCURATE_RND & SWS_FULL_CHR_H_INT,
+                              NULL, NULL, NULL);
+    if(ctx == nullptr)
+    {
+        throw Error{"failed to create sws context"};
+    }
+    Defer freeContext([ctx]() { sws_freeContext(ctx); });
+
+    auto res = MakeFrame();
+    res->format = format;
+    res->width = frame.width;
+    res->height = frame.height;
+    if(auto err = av_frame_get_buffer(res.get(), 0); err != 0)
+    {
+        throw LibraryCallError{"av_frame_get_buffer", err};
+    }
+
+    sws_scale(ctx,
+              frame.data,
+              frame.linesize,
+              0,
+              frame.height,
+              res->data,
+              res->linesize);
+
+    return res;
+}
+
+//Only ARGB/RGBA is supported
+Rgb32Image ToImage(const AVFrame &frame, AVPixelFormat format)
+{
+    if(format != AV_PIX_FMT_ARGB &&
+           format != AV_PIX_FMT_RGBA &&
+           format != AV_PIX_FMT_BGRA)
+    {
+        throw ArgumentError{Format(R"(argument "format"({}) is not supported)",
+                                   static_cast<int>(format))};
+    }
+
+    auto converted = ConvertFrame(frame, format);
+
+    auto image = Rgb32Image{IntCast<std::size_t>(converted->width),
+                            IntCast<std::size_t>(converted->height)};
+
+    auto avSize = av_image_get_buffer_size(format,
+                                           converted->width,
+                                           converted->height,
+                                           1);
+    if(!std::cmp_equal(avSize, image.Data().size_bytes()))
+    {
+        throw Error{"image conversion size mismatch"};
+    }
+
+    av_image_copy_to_buffer(image.Data().data(),
+                            avSize,
+                            converted->data,
+                            converted->linesize,
+                            format,
+                            converted->width,
+                            converted->height,
+                            1);
+
+    return image;
+}
+
+}//namespace internal
 
 } //namespace vd

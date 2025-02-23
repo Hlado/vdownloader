@@ -8,7 +8,8 @@ add_executable(${PROJECT_NAME} LibavUtilsTests.cpp
                                OptionsTests.cpp
                                SourcesTests.cpp
                                UtilsTests.cpp
-                               VideoStreamTests.cpp)
+                               VideoStreamTests.cpp
+                               VideoUtilsTests.cpp)
 
 #https://github.com/google/googletest/issues/2157#issuecomment-1004443132
 target_link_libraries(${PROJECT_NAME}

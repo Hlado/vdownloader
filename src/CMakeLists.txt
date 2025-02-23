@@ -4,16 +4,19 @@ set(SOURCE_FILES vd/Errors.cpp
                  vd/Options.cpp
                  vd/Sources.cpp
                  vd/Utils.cpp
-                 vd/VideoStream.cpp)
+                 vd/VideoStream.cpp
+                 vd/VideoUtils.cpp)
 
 set(HEADER_FILES vd/Errors.h
                  vd/ImageFormats.h
+                 vd/Libav.h
                  vd/LibavUtils.h
                  vd/Options.h
                  vd/Preprocessor.h
                  vd/Sources.h
                  vd/Utils.h
-                 vd/VideoStream.h)
+                 vd/VideoStream.h
+                 vd/VideoUtils.h)
 
 set(LIB_NAME ${PROJECT_NAME}lib)
 

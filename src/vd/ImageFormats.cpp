@@ -40,8 +40,7 @@ namespace vd
 {
 
 void WriteJpg(const std::filesystem::path &path,
-              std::span<const std::byte> rgbaData,
-              std::size_t width,
+              const Rgb32Image &rgbaImage,
               std::uint8_t quality)
 {
     if(quality > 100)
@@ -49,16 +48,14 @@ void WriteJpg(const std::filesystem::path &path,
         throw ArgumentError{R"(parameter "quality" is greater than 100)"};
     }
 
-    auto rowSize = Mul(width, 4u);
-    auto height = rgbaData.size_bytes() / rowSize;
-
+    auto absolute = std::filesystem::absolute(path);
     auto err =
         stbi_write_jpg(
-            path.string().c_str(),
-            IntCast<int>(width),
-            IntCast<int>(height),
+            absolute.string().c_str(),
+            IntCast<int>(rgbaImage.Width()),
+            IntCast<int>(rgbaImage.Height()),
             4,
-            rgbaData.data(),
+            rgbaImage.Data().data(),
             quality);
 
     if(err == 0)
@@ -70,20 +67,17 @@ void WriteJpg(const std::filesystem::path &path,
 
 
 void WritePng(const std::filesystem::path &path,
-              std::span<const std::byte> rgbaData,
-              std::size_t width)
+              const Rgb32Image &rgbaImage)
 {
-    auto rowSize = Mul(width, 4u);
-    auto height = rgbaData.size_bytes() / rowSize;
-
+    auto absolute = std::filesystem::absolute(path);
     auto err =
         stbi_write_png(
-            path.string().c_str(),
-            IntCast<int>(width),
-            IntCast<int>(height),
+            absolute.string().c_str(),
+            IntCast<int>(rgbaImage.Width()),
+            IntCast<int>(rgbaImage.Height()),
             4,
-            rgbaData.data(),
-            IntCast<int>(rowSize));
+            rgbaImage.Data().data(),
+            0); //stride will be calculated automatically if 0 is given
 
     if(err == 0)
     {
@@ -284,32 +278,20 @@ private:
 
 
 
-void WriteTga(std::ostream &stream, std::span<const std::byte> bgraData, std::size_t width)
+void WriteTga(std::ostream &stream, const Rgb32Image &bgraImage)
 {
-    if(width == 0)
-    {
-        throw ArgumentError{"width is zero"};
-    }
-    if(bgraData.empty())
-    {
-        throw ArgumentError{"pixels vector is empty"};
-    }
-    if(bgraData.size_bytes() % Mul(width, 4u) != 0)
-    {
-        throw ArgumentError{"wrong width or pixel format"};
-    }
 
     TgaFileHeader header;
     header.SetDataType(2);
-    header.SetWidth(UintCast<std::uint16_t>(width));
-    header.SetHeight(UintCast<std::uint16_t>(bgraData.size() / Mul(width, 4u)));
+    header.SetWidth(UintCast<std::uint16_t>(bgraImage.Width()));
+    header.SetHeight(UintCast<std::uint16_t>(bgraImage.Height()));
     header.SetPixSize(32);
     header.SetNumAttributeBits(8);
     //header.SetLeftToRightFlag(true);
     header.SetTopToBottomFlag(true);
     
     header.Write(stream);
-    stream.write(reinterpret_cast<const char *>(bgraData.data()), bgraData.size_bytes());
+    stream.write(reinterpret_cast<const char *>(bgraImage.Data().data()), bgraImage.Data().size_bytes());
     stream.flush();
 
     if(!stream)
@@ -318,7 +300,7 @@ void WriteTga(std::ostream &stream, std::span<const std::byte> bgraData, std::si
     }
 }
 
-void WriteTga(const std::filesystem::path &path, std::span<const std::byte> bgraData, std::size_t width)
+void WriteTga(const std::filesystem::path &path, const Rgb32Image &bgraImage)
 {
     auto absolute = std::filesystem::absolute(path);
     std::filesystem::create_directories(absolute.parent_path());
@@ -328,7 +310,7 @@ void WriteTga(const std::filesystem::path &path, std::span<const std::byte> bgra
         throw Error{std::format(R"(failed to open file for writing image "{}")", absolute.string())};
     }
 
-    WriteTga(fs, bgraData, width);
+    WriteTga(fs, bgraImage);
 }
 
 }//namespace vd

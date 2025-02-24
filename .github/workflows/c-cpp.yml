@@ -62,7 +62,7 @@ jobs:
       uses: ./actions/build
       with:
         cmake_preset: ci_valgrind
-        os_name: ${{ runner.os}}
+        os_name: ${{ runner.os }}
 
     - name: CMake valgrind
-      run: cmake --build --preset=${{ env.CMAKE_PRESET }} --target valgrind_check
+      run: cmake --build --preset=ci_valgrind --target valgrind_check

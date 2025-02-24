@@ -12,11 +12,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-
     - name: Setup Ninja
       uses: seanmiddleditch/gha-setup-ninja@v5
       

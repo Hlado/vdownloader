@@ -18,10 +18,11 @@ jobs:
       CMAKE_PRESET: ${{ matrix.os == 'windows-latest' && 'ci_windows' || 'ci_linux' }}
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout
+      uses: actions/checkout@v4
       with:
         submodules: recursive
-    
+
     - name: Build
       uses: ./actions/build
       with:
@@ -47,3 +48,21 @@ jobs:
       with:
         name: vdownloader-linux-x64
         path: install/bin/vdownloader
+
+  valgrind:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Build
+      uses: ./actions/build
+      with:
+        cmake_preset: ci_valgrind
+        os_name: ${{ runner.os}}
+
+    - name: CMake valgrind
+      run: cmake --build --preset=${{ env.CMAKE_PRESET }} --target valgrind_check

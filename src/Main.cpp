@@ -167,7 +167,7 @@ void ThreadMain(ThreadContext &ctx)
         auto frame = stream.NextFrame(timestamp).value();
         
         auto path = MakePath(ctx.options.format,
-                             ctx.segIdx,
+                             ctx.segIdx + 1,
                              IntCast<std::size_t>(frameIdx + 1),
                              timestamp);
         SaveFrame(path, frame);

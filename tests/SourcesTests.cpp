@@ -44,6 +44,14 @@ auto gDefaultSource = MemoryViewSource{gContentSpan};
 
 
 
+TEST(UrlParsingTests, BadUrl)
+{
+    ASSERT_THROW(ExtractAddress(""), ArgumentError);
+    ASSERT_THROW(ExtractPathAndQuery("/"), ArgumentError);
+    ASSERT_THROW(ExtractAddress(""), ArgumentError);
+    ASSERT_THROW(ExtractPathAndQuery("/"), ArgumentError);
+}
+
 TEST(UrlParsingTests, AddressExtraction)
 {
     ASSERT_EQ(std::string("http://random.site.com:1234"), ExtractAddress("http://random.site.com:1234"));

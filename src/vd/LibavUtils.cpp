@@ -24,7 +24,7 @@ void PacketDeleter::operator()(const AVPacket *p) const
 {
     if(p != nullptr)
     {
-        av_packet_free(const_cast<AVPacket **>(&p));
+        //av_packet_free(const_cast<AVPacket **>(&p));
     }
 }
 

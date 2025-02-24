@@ -20,25 +20,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-          submodules: recursive
+        submodules: recursive
     
-    - name: Setup Ninja
-      uses: seanmiddleditch/gha-setup-ninja@v5
-      
-    - name: Setup NASM
-      uses: ilammy/setup-nasm@v1.5.1
-  
-    - name: Setup MSVC
-      if: ${{ runner.os == 'Windows' }}
-      uses: ilammy/msvc-dev-cmd@v1
+    - name: Build
+      uses: ./actions/build
       with:
-        arch: amd64
-  
-    - name: CMake generate
-      run: cmake --preset=${{ env.CMAKE_PRESET }}
-      
-    - name: CMake build
-      run: cmake --build --preset=${{ env.CMAKE_PRESET }}
+        cmake_preset: ${{ env.CMAKE_PRESET }}
+        os_name: ${{ runner.os}}
 
     - name: CMake tests
       run: cmake --build --preset=${{ env.CMAKE_PRESET }} --target test

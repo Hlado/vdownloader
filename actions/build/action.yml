@@ -1,0 +1,38 @@
+name: "Build"
+description: "Sets up environment and builds projects with given CMake preset"
+
+inputs:
+  cmake_preset:
+    description: "Preset for CMake to generate and build project"
+    required: true
+  os_name:
+    description: "Name of OS of runner (Linux/Windows)"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup Ninja
+      uses: seanmiddleditch/gha-setup-ninja@v5
+      
+    - name: Setup NASM
+      uses: ilammy/setup-nasm@v1.5.1
+  
+    - name: Setup MSVC
+      if: ${{ inputs.os_name == 'Windows' }}
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: amd64
+  
+    - name: CMake generate
+      run: cmake --preset=${{ inputs.cmake_preset }}
+      shell: bash
+
+    - name: CMake build
+      run: cmake --build --preset=${{ inputs.cmake_preset }}
+      shell: bash

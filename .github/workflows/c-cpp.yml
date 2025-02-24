@@ -59,7 +59,7 @@ jobs:
         submodules: recursive
 
     - name: Install valgrind
-      run: apt-get install valgrind
+      run: sudo apt-get install valgrind
       
     - name: Build
       uses: ./actions/build

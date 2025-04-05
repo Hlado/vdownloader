@@ -14,12 +14,6 @@
     #define VDOWNLOADER_OS_WINDOWS
 #endif
 
-#if defined(VDOWNLOADER_COMPILER_MSVC)
-    #define VDOWNLOADER_FUNC __FUNCSIG__
-#else
-    #define VDOWNLOADER_FUNC __PRETTY_FUNCTION__
-#endif
-
 #if defined(VDOWNLOADER_COMPILER_GCC)
     #define VDOWNLOADER_UNUSED __attribute__ ((unused))
 #else
